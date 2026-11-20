@@ -17,18 +17,19 @@ export function CalibrationStudio() {
   const poseSessionRef = useRef<PoseSession | null>(null);
   const latestFrameRef = useRef<PoseFrame | null>(null);
   const samplesRef = useRef<CalibrationProfile["samples"]>({});
-  const [game] = useState<GameBlueprint | null>(() => {
-    if (typeof window === "undefined") return null;
-    const stored = localStorage.getItem("move-canvas:active-blueprint");
-    return stored ? (JSON.parse(stored) as GameBlueprint) : null;
-  });
+  const [game, setGame] = useState<GameBlueprint | null>(null);
   const [camera, setCamera] = useState<CameraState>("idle");
   const [pose, setPose] = useState<PoseState>("idle");
   const [captured, setCaptured] = useState<Gesture[]>([]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
+    const timer = window.setTimeout(() => {
+      const stored = localStorage.getItem("move-canvas:active-blueprint");
+      setGame(stored ? (JSON.parse(stored) as GameBlueprint) : null);
+    }, 0);
     return () => {
+      window.clearTimeout(timer);
       poseSessionRef.current?.stop();
       streamRef.current?.getTracks().forEach((track) => track.stop());
     };

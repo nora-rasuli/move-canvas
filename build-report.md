@@ -29,7 +29,9 @@
 - `npm run build`: pass
 - Browser: fresh “neon jungle” idea → Parrots Dash → calibration entry; malformed
   short prompt; creator-to-setup scroll position; two-tab room/blueprint/gesture
-  handshake.
+  handshake. A fresh server recheck emitted ordinary `GET /pair 200` and
+  `GET /calibrate 200` requests with no hydration exception after two storage
+  boundary repairs.
 
 ## Known incomplete requirements
 

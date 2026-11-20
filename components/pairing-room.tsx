@@ -1,20 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import type { GameBlueprint, Gesture } from "@/lib/blueprint";
 import { connectSession, createRoomCode, type SessionConnection } from "@/lib/channel";
 
 export function PairingRoom() {
-  const code = useSyncExternalStore(subscribeToBrowserValue, readRoomCode, () => "");
-  const origin = useSyncExternalStore(subscribeToOrigin, readOrigin, () => "");
-  const gameJson = useSyncExternalStore(subscribeToBrowserValue, readGame, () => null);
+  const [code, setCode] = useState("");
+  const [origin, setOrigin] = useState("");
+  const [gameJson, setGameJson] = useState<string | null>(null);
   const game = useMemo(() => gameJson ? (JSON.parse(gameJson) as GameBlueprint) : null, [gameJson]);
   const [connected, setConnected] = useState(false);
   const [transportReady, setTransportReady] = useState(false);
   const [mode, setMode] = useState<"supabase" | "same-device">("same-device");
   const connectionRef = useRef<SessionConnection | null>(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setCode(readRoomCode());
+      setOrigin(window.location.origin);
+      setGameJson(localStorage.getItem("move-canvas:active-blueprint"));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (!code) return;
@@ -79,10 +88,6 @@ export function PairingRoom() {
 
 const formatGesture = (gesture: string) => gesture.split("_").map((part) => part[0].toUpperCase() + part.slice(1)).join(" ");
 
-const subscribeToBrowserValue = () => () => undefined;
-const subscribeToOrigin = subscribeToBrowserValue;
-const readOrigin = () => window.location.origin;
-const readGame = () => localStorage.getItem("move-canvas:active-blueprint");
 const readRoomCode = () => {
   const existing = sessionStorage.getItem("move-canvas:room-code");
   if (existing) return existing;
