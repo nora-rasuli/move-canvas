@@ -34,6 +34,7 @@
 | 2026-11-20 | 04 Package 1.3 audit | PASS for staged Production | 05 Publish | `audit-report-1.3.md`; explicit consent, bounded signaling, no media persistence, truthful STUN/TURN limits |
 | 2026-11-20 | 05 Package 1.3 publish | PASS — exact staged deployment promoted | 06 Live Product Review | `publish-report-1.3.md`; deployment `dpl_6xC4NmGv7WpZeJxHJV4nPUt7zaM6`; canonical routes 200 |
 | 2026-11-20 | 06 Package 1.3 automated live review | PASS for public browser/API scope | Physical TV/phone review | Four Dance/movement and four Tennis choices rendered; controller consent/hands-free controls rendered; YouTube returned 8; zero recent production errors |
+| 2026-11-20 | 05 Package 1.3 portfolio presentation | PASS — case study synchronized and public | Physical TV/phone review | <https://nora-rasuli.github.io/work/move-canvas/> at portfolio commit `9b57459`; portfolio CI and Pages PASS |
 
 ## Active state
 
@@ -42,6 +43,6 @@ remote CI, Stage 03 validation, Stage 04 privacy/product audit, staged
 Production procedure, promotion, and automated Stage 06 public checks. The
 next route is Nora's physical TV/phone review: hands-free calibration, audible
 cues, live player view, stop-sharing behavior, and restrictive-network/TURN
-need. The portfolio presentation must now be synchronized. Stage 07 remains
-closed until a real post-launch observation window exists.
+need. The public portfolio presentation is synchronized and verified. Stage 07
+remains closed until a real post-launch observation window exists.
 
