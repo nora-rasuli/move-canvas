@@ -2,7 +2,7 @@
 
 - **Opportunity:** OPP-2026-014
 - **Working slug:** `move-canvas`
-- **Current stage:** 06 — Live Product Review
+- **Current stage:** 02 — Build (Stage 06 bounded production repair)
 - **Package:** 1.1 frozen
 - **Originality:** Pass — crowded but differentiated
 - **Preflight:** Pass with strict privacy/claim boundaries and owned external actions
@@ -10,14 +10,14 @@
 - **Public state:** Production at <https://move-canvas.vercel.app>; public source
   at <https://github.com/nora-rasuli/move-canvas>; portfolio case study at
   <https://nora-rasuli.github.io/work/move-canvas/>
-- **Functional gate:** Stage 05 production verification passed against deployment
-  `dpl_J4XHhVgS1f5qoDmVAQNqqragxGG1` and source
-  `5f94a5e946c12434a05908179a0193ee2804e3b2`; independent Stage 06 live-user
-  review is active
-- **Next action:** Complete the fresh Stage 06 production review, retain its
-  exact gate decision and prioritized findings, and route any P0/P1 to its
-  owning earlier stage before opening Stage 07.
-- **Next verifier:** Fresh Stage 06 — Live Product Review
+- **Functional gate:** Stage 06 returned `REWORK` on `MC-LIVE-P1-01`
+  controller/camera/calibration readiness and `MC-LIVE-P1-02` behaviorally
+  distinct fresh-input fallback; adjacent `MC-LIVE-P2-01` removes public
+  fixture controls
+- **Next action:** Complete only the bounded Stage 02 repair in
+  `live-product-review-1.1.md`, create an immutable candidate, and route it to
+  fresh Stage 03 verification.
+- **Next verifier:** Fresh Stage 03 after the bounded repair candidate is complete
 
 ## Mandatory stop conditions
 

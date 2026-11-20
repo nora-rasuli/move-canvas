@@ -21,17 +21,18 @@
 | 2026-11-20 | 04 Independent audit | PASS — ready with disclosed limitations | 05 Publish | `audit-report-1.1.md`; immutable audited candidate `ca641036a50625d59cd58c4b9b477504915665fe` |
 | 2026-11-20 | 05 Publish | PASS — production, public repository, CI, routes/API/headers, private-room isolation, and 10/10 production Playwright scenarios verified | 06 Live Product Review | `publish-report-1.1.md`; deployment `dpl_J4XHhVgS1f5qoDmVAQNqqragxGG1`; source `5f94a5e946c12434a05908179a0193ee2804e3b2` |
 | 2026-11-20 | 05 Portfolio presentation | PASS — public case study, GitHub profile feature, and repository pin verified | 06 Live Product Review | <https://nora-rasuli.github.io/work/move-canvas/> at portfolio commit `d04eb2e14989a2255c0cea509a465e27f867cb7a` |
-| 2026-11-20 | 06 Live Product Review | IN PROGRESS — fresh independent production review routed | Await explicit verifier decision | `live-product-review-1.1.md` pending |
+| 2026-11-20 | 06 Live Product Review | REWORK — two P1 production failures and adjacent P2 fixture-surface cleanup | Return bounded package to 02 Build | `live-product-review-1.1.md`; `MC-LIVE-P1-01`, `MC-LIVE-P1-02`, `MC-LIVE-P2-01` |
+| 2026-11-20 | 02 Build live repair 1 | IN PROGRESS | Create immutable repair candidate; route to fresh Stage 03 | Controller/camera/calibration readiness, behaviorally distinct fallback, production fixture removal |
 
 ## Active state
 
-Stage 06 Live Product Review against the published Package 1.1 production
-deployment. Stage 03 automated eligibility, Stage 04 audit, Stage 05 production
-publication, and public portfolio presentation have recorded passing evidence.
-A fresh independent verifier is reviewing the live product as an actual user
-and must return exactly one `PASS`, `REWORK`, `BLOCKED`, or `STOP` decision.
-Any P0/P1 routes to the owning earlier stage; otherwise a `PASS` opens Stage 07
-Adoption & Evidence. Physical-device, coaching-quality, measured-latency,
-CAPTCHA, retention-cleanup, membership-ACL, and other unverified claims remain
-outside the supported evidence boundary.
+Stage 02 bounded production repair against frozen Package 1.1. Stage 06 returned
+`REWORK` because the display can treat its own relay subscription as controller
+readiness and start an uncalibrated coaching session, while the public
+no-provider Motion Game fallback changes mostly cosmetic text instead of a
+meaningful playable variable. The adjacent P2 cleanup removes developer fixture
+controls from the production UX without removing deterministic test coverage.
+After an immutable repair candidate is created, a fresh Stage 03 verifier must
+reproduce both former failures as negative tests and recheck the affected
+readiness and fresh-input gates. Stage 07 remains closed.
 
