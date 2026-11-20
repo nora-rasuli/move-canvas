@@ -13,6 +13,14 @@ export type LoadedReference = {
   dispose: () => void;
 };
 
+export function hasPersistentMultiplePeople(
+  framesWithMultiplePeople: number,
+  sampledFrames: number,
+) {
+  if (sampledFrames <= 0) return false;
+  return framesWithMultiplePeople >= Math.max(3, Math.ceil(sampledFrames * 0.15));
+}
+
 export function validateReferenceFile(file: File) {
   const extensionSupported = /\.(mp4|webm)$/i.test(file.name);
   if (!SUPPORTED_TYPES.has(file.type) && !extensionSupported) {
@@ -63,7 +71,8 @@ export async function extractReferenceTimeline(
     minTrackingConfidence: 0.55,
   });
   const frames: PoseFrame[] = [];
-  let multiplePeopleDetected = false;
+  let framesWithMultiplePeople = 0;
+  let sampledFrames = 0;
   try {
     for (let at = 0; at <= durationMs; at += DANCE_SAMPLE_INTERVAL_MS) {
       const targetTime = Math.min(at / 1_000, Math.max(0, video.duration - 0.001));
@@ -75,13 +84,14 @@ export async function extractReferenceTimeline(
         await waitFor(video, "seeked");
       }
       const result = landmarker.detectForVideo(video, at);
-      if (result.landmarks.length > 1) multiplePeopleDetected = true;
+      sampledFrames += 1;
+      if (result.landmarks.length > 1) framesWithMultiplePeople += 1;
       const landmarks = result.landmarks[0] as Landmark[] | undefined;
       if (landmarks) frames.push({ capturedAt: at, landmarks });
       if (at % 1_000 === 0) onProgress?.(Math.min(1, at / durationMs));
     }
     onProgress?.(1);
-    if (multiplePeopleDetected)
+    if (hasPersistentMultiplePeople(framesWithMultiplePeople, sampledFrames))
       throw new Error("The reference must show one clearly visible person at a time.");
     return buildDanceTimeline(frames, durationMs, orientation);
   } finally {
