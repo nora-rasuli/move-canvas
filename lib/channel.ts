@@ -41,6 +41,7 @@ export type SessionMessage =
   | { type: "result"; result: GameResult }
   | { type: "blueprint"; payload: unknown }
   | { type: "coach-controller-ready"; mode: "dance-coach" | "tennis-coach" }
+  | { type: "coach-display-ready"; mode: "dance-coach" | "tennis-coach" }
   | { type: "coach-session"; session: CoachSession }
   | { type: "dance-reference"; timeline: DanceTimeline }
   | ({ type: "coach-control" } & CoachControl)

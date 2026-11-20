@@ -15,13 +15,16 @@
 | 2026-11-19 | 02 Build 1.1 | AUTOMATED CANDIDATE PASS; physical evidence pending | Keep Stage 02; create immutable candidate and hand to fresh Stage 03 | 21 unit tests, production build, 6 Playwright tests, `build-report.md` |
 | 2026-11-19 | 03 Independent validation 1.1 | REWORK on candidate `7374066` | Return bounded clock, calibration, and countdown findings to 02 Build | Preserved `validation-report-1.1.md` |
 | 2026-11-19 | 02 Build 1.1 rework | REPAIR AUTOMATION PASS; physical evidence still pending | Create immutable repair candidate; fresh Stage 03 exact recheck | Shared elapsed/media controls, session calibration, Tennis countdown; 27 unit tests and 6 Playwright tests |
+| 2026-11-19 | 03 Repair recheck 1 | REWORK on candidate `7f56def` | Return paused-stop and display-reload findings to 02 Build | Preserved `validation-report-1.1-recheck-1.md` |
+| 2026-11-19 | 02 Build recheck 1 repair | FULL AUTOMATED PASS; physical evidence still pending | Create immutable candidate; route to fresh Stage 03 exact recheck | Idempotent paused Stop on both peers; ready/paused/running display re-handshake; 28 unit tests, production build, and 8 Playwright scenarios |
 
 ## Active state
 
 Stage 02 Build against frozen Package 1.1. The bounded repair candidate
-preserves the private multiplayer game and corrects the independent report's
-Dance clock/media, inspectable calibration, and Tennis countdown findings. A
-fresh Stage 03 verifier must first reproduce those exact automated repairs,
+preserves the private multiplayer game and corrects both prior reports' Dance
+clock/media, paused safe-stop, symmetric reload, inspectable calibration, and
+Tennis countdown findings. A fresh Stage 03 verifier must first reproduce
+those exact automated repairs,
 then complete real local-video extraction, real phone-camera comparison, both
 physical shadow drills, privacy/network behavior, measured latency, recovery,
 and manual accessibility before any stage advance. Routine corrections remain

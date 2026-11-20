@@ -7,6 +7,8 @@ import { connectSession, createRoomCode, type SessionConnection } from "@/lib/ch
 import {
   DANCE_LIMITATION,
   TENNIS_LIMITATION,
+  coachSessionSchema,
+  danceTimelineSchema,
   serializedBytes,
   type CoachResult,
   type CoachSession,
@@ -60,6 +62,7 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
   const [danceEvents, setDanceEvents] = useState<DanceFeedbackEvent[]>([]);
   const [result, setResult] = useState<CoachResult | null>(null);
   const [running, setRunning] = useState(false);
+  const [recoveryNotice, setRecoveryNotice] = useState("");
   const [clock, setClock] = useState(createCoachClock);
   const [clockNow, setClockNow] = useState(0);
 
@@ -101,6 +104,25 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
         const sync = createClockSyncControl(clockRef.current, performance.now());
         if (sync) void connectionRef.current?.send({ type: "coach-control", ...sync });
       }
+      if (message.type === "coach-session") {
+        const parsed = coachSessionSchema.safeParse(message.session);
+        if (parsed.success && parsed.data.mode === mode) {
+          setConnected(true);
+          if (mode === "dance-coach" && parsed.data.clipLabel) setClipLabel(parsed.data.clipLabel);
+          if (mode === "tennis-coach") {
+            if (parsed.data.drill) setDrill(parsed.data.drill);
+            if (parsed.data.handedness) setHandedness(parsed.data.handedness);
+          }
+        }
+      }
+      if (message.type === "dance-reference" && mode === "dance-coach") {
+        const parsed = danceTimelineSchema.safeParse(message.timeline);
+        if (parsed.success) {
+          setTimeline(parsed.data);
+          setExtraction("ready");
+          setRecoveryNotice("Reference timeline restored from the paired phone. Reselect the local clip to restore its video preview after display reload.");
+        }
+      }
       if (message.type === "dance-feedback") setDanceEvents((events) => [...events.slice(-39), message.event]);
       if (message.type === "tennis-progress") {
         setPhase(message.phase);
@@ -117,6 +139,7 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
       if (!active) return void connection.close();
       connectionRef.current = connection;
       setTransport(connection.mode);
+      void connection.send({ type: "coach-display-ready", mode });
     });
     return () => {
       active = false;
@@ -142,6 +165,7 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
       countdownTimerRef.current = null;
     }
     const next = applyCoachControl(clockRef.current, control, performance.now());
+    if (next === clockRef.current) return;
     clockRef.current = next;
     setClock(next);
     setClockNow(performance.now());
@@ -158,6 +182,7 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
     setExtraction("loading");
     setProgress(0);
     setTimeline(null);
+    setRecoveryNotice("");
     setResult(null);
     referenceDisposeRef.current?.();
     referenceDisposeRef.current = null;
@@ -184,6 +209,7 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
     setClipLabel("Deterministic landmark fixture (not a real clip)");
     setExtraction("ready");
     setError("");
+    setRecoveryNotice("");
     if (connected) void connectionRef.current?.send({ type: "dance-reference", timeline: fixture });
   }
 
@@ -262,6 +288,7 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
                 {extraction === "loading" ? `Extracting estimated 2D poses locally… ${Math.round(progress * 100)}%` : null}
                 {extraction === "ready" && timeline ? `${timeline.frames.length} confidence-qualified samples · ${Math.round(serializedBytes(timeline) / 1024)} KiB timeline` : null}
                 {extraction === "error" ? <span role="alert">{error} Choose a different local clip and try again.</span> : null}
+                {recoveryNotice ? <span>{recoveryNotice}</span> : null}
               </div>
               <details className="verification-controls"><summary>Deterministic verification controls</summary><p>This synthetic landmark timeline tests UI and transport only. It is not real-clip or real-device evidence.</p><button type="button" onClick={loadVerificationTimeline}>Load landmark fixture</button></details>
             </>
@@ -294,7 +321,7 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
           {clock.phase === "countdown" ? <button className="button button-ghost" type="button" onClick={cancelCountdown}>Cancel countdown</button> : null}
           {clock.phase !== "running" && clock.phase !== "paused" && clock.phase !== "countdown" ? <button className="button button-primary" type="button" disabled={!canStart} onClick={startPractice}>{result ? "Practice again" : "Start practice"}</button> : null}
           {running ? <button className="button button-ink" type="button" onClick={() => void control("pause")}>Pause</button> : null}
-          {running ? <button className="button button-ghost" type="button" onClick={() => void control("stop")}>End session</button> : null}
+          {clock.phase === "running" || clock.phase === "paused" ? <button className="button button-ghost" type="button" onClick={() => void control("stop")}>End session</button> : null}
           {clock.phase === "paused" && connected ? <button className="button button-primary" type="button" onClick={() => void control("resume")}>Resume</button> : null}
         </div>
         {result ? <div className="coach-result" aria-live="polite"><p>Confidence {Math.round(result.confidence * 100)}% · {result.completedUnits} qualified {mode === "dance-coach" ? "comparisons" : "reps"}</p><ul>{result.cues.map((cue) => <li key={cue.code}>{cue.text}</li>)}</ul><p className="limitation">{result.limitation}</p></div> : null}

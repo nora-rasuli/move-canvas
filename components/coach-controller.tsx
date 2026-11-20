@@ -17,6 +17,7 @@ import {
   coachElapsed,
   createCoachClock,
   createCoachControl,
+  createClockSyncControl,
   readCoachNow,
   type CoachControl,
   type CoachControlAction,
@@ -98,6 +99,12 @@ export function CoachController() {
           setNeutralSample(savedCalibration?.neutral ?? null);
           if (parsed.data.mode === "tennis-coach" && parsed.data.drill) trackerRef.current = new TennisRepTracker(parsed.data.drill);
         }
+      }
+      if (message.type === "coach-display-ready" && message.mode === mode) {
+        if (sessionRef.current) void connectionRef.current?.send({ type: "coach-session", session: sessionRef.current });
+        if (mode === "dance-coach" && timelineRef.current) void connectionRef.current?.send({ type: "dance-reference", timeline: timelineRef.current });
+        const sync = createClockSyncControl(clockRef.current, readCoachNow(), "phone");
+        if (sync) void connectionRef.current?.send({ type: "coach-control", ...sync });
       }
       if (message.type === "dance-reference") {
         const parsed = danceTimelineSchema.safeParse(message.timeline);
@@ -249,7 +256,9 @@ export function CoachController() {
       countdownTimerRef.current = null;
     }
     const now = readCoachNow();
-    const next = applyCoachControl(clockRef.current, control, now);
+    const previous = clockRef.current;
+    const next = applyCoachControl(previous, control, now);
+    if (next === previous) return;
     clockRef.current = next;
     setClock(next);
     setClockNow(now);
@@ -373,7 +382,7 @@ export function CoachController() {
         <dl className="controller-facts"><div><dt>Camera</dt><dd>{camera}</dd></div><div><dt>Reference/setup</dt><dd>{mode === "dance-coach" ? (timeline ? `${timeline.frames.length} samples` : "waiting") : (session?.drill?.replaceAll("-", " ") ?? "waiting")}</dd></div><div><dt>Qualified reps</dt><dd>{mode === "tennis-coach" ? `${repCount} / 3` : "—"}</dd></div></dl>
         <p className="coach-clock" data-testid={mode === "dance-coach" ? "dance-comparison-position" : "coach-elapsed"}>{mode === "dance-coach" ? "Comparison position" : "Elapsed"} {(elapsedMs / 1_000).toFixed(1)}s</p>
         {mode === "tennis-coach" && countdown ? <p role="status" aria-live="assertive" aria-atomic="true">Tennis practice starts in {countdown}</p> : null}
-        <div className="coach-actions">{clock.phase === "countdown" ? <button className="button button-ghost" type="button" onClick={cancelCountdown}>Cancel countdown</button> : null}{clock.phase !== "running" && clock.phase !== "paused" && clock.phase !== "countdown" ? <button className="button button-primary" type="button" disabled={!ready} onClick={startPractice}>Start on phone</button> : null}<button className="button button-ink" type="button" disabled={!running} onClick={() => void dispatchControl("pause")}>Pause</button>{clock.phase === "paused" ? <button className="button button-primary" type="button" onClick={() => void dispatchControl("resume")}>Resume</button> : null}<button className="button button-ghost" type="button" disabled={!running} onClick={endRun}>End safely</button></div>
+        <div className="coach-actions">{clock.phase === "countdown" ? <button className="button button-ghost" type="button" onClick={cancelCountdown}>Cancel countdown</button> : null}{clock.phase !== "running" && clock.phase !== "paused" && clock.phase !== "countdown" ? <button className="button button-primary" type="button" disabled={!ready} onClick={startPractice}>Start on phone</button> : null}<button className="button button-ink" type="button" disabled={!running} onClick={() => void dispatchControl("pause")}>Pause</button>{clock.phase === "paused" ? <button className="button button-primary" type="button" onClick={() => void dispatchControl("resume")}>Resume</button> : null}<button className="button button-ghost" type="button" disabled={clock.phase !== "running" && clock.phase !== "paused"} onClick={endRun}>End safely</button></div>
         <details className="verification-controls"><summary>Deterministic verification controls</summary><p>These controls verify ordered rules, messaging, and recovery without claiming real-camera evidence.</p><button type="button" disabled={!session} onClick={useFixtureFraming}>Use fixture framing</button>{mode === "dance-coach" ? <><button type="button" disabled={!timeline} onClick={sendDanceFixture}>Send next fixture comparison</button><button type="button" disabled={!running} onClick={() => { setLatestCue("Fixture tracking loss requested."); void dispatchControl("pause", "tracking-loss"); }}>Simulate tracking loss</button></> : phases.map((phase) => <button type="button" key={phase} onClick={() => sendTennisFixturePhase(phase)}>{phase.replaceAll("-", " ")}</button>)}</details>
         <p className="limitation">{mode === "dance-coach" ? "2D reference-relative practice cues only; no artistry or professional-coaching judgment." : "2D shadow-phase practice only; no ball, racket, force, speed, spin, placement, biomechanics, or injury guidance."}</p>
         <small>{transport === "supabase" ? "Private possession-code relay" : "Same-device verification relay"}</small>

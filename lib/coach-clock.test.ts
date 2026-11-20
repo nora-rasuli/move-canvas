@@ -37,6 +37,19 @@ describe("shared coaching clock", () => {
     expect(media.currentTime).toBe(2);
   });
 
+  it("makes repeated pause and stop transitions idempotent", () => {
+    const paused = applyCoachControl(
+      applyCoachControl(createCoachClock(), control("start", 0), 100),
+      control("pause", 500),
+      600,
+    );
+    expect(applyCoachControl(paused, control("pause", 900, "second-pause"), 1_000)).toBe(paused);
+    const stopped = applyCoachControl(paused, control("stop", 500), 1_100);
+    expect(stopped).toMatchObject({ phase: "finished", elapsedMs: 500 });
+    expect(applyCoachControl(stopped, control("stop", 900, "second-stop"), 1_200)).toBe(stopped);
+    expect(applyCoachControl(stopped, control("resume", 900, "stale-resume"), 1_300)).toBe(stopped);
+  });
+
   it("supports cancelable countdown state without starting the clock", () => {
     const countdown = applyCoachControl(createCoachClock(), control("countdown", 0), 500);
     expect(countdown).toMatchObject({ phase: "countdown", countdownEndsAt: 3_500, elapsedMs: 0 });

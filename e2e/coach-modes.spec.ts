@@ -21,6 +21,7 @@ async function installMediaAudit(page: Page) {
 
 const readMediaAudit = (page: Page) => page.evaluate(() => (window as typeof window & { __moveCanvasMediaAudit: MediaAudit }).__moveCanvasMediaAudit);
 const readComparisonPosition = async (page: Page) => Number.parseFloat((await page.getByTestId("dance-comparison-position").textContent())?.match(/[\d.]+/)?.[0] ?? "0");
+const readDisplayElapsed = async (page: Page) => Number.parseFloat((await page.getByTestId("coach-elapsed").textContent())?.match(/[\d.]+/)?.[0] ?? "0");
 
 test("mode selection exposes three truthful first-class paths", async ({ page }) => {
   await page.goto("/coach");
@@ -102,6 +103,111 @@ test("dance fixture verifies paired semantic flow without claiming real-device e
   expect(phoneAxe.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical")).toEqual([]);
   await display.screenshot({ path: "evidence/package-1.1/dance-result-fixture.png", fullPage: true });
   await phone.screenshot({ path: "evidence/package-1.1/dance-phone-360-fixture.png", fullPage: true });
+  await Promise.all([displayContext.close(), phoneContext.close()]);
+});
+
+test("paused Dance sessions can end safely from either peer", async ({ browser }) => {
+  const displayContext = await browser.newContext({ baseURL, reducedMotion: "reduce" });
+  const phoneContext = await browser.newContext({ baseURL, viewport: { width: 360, height: 780 }, reducedMotion: "reduce" });
+  const display = await displayContext.newPage();
+  await installMediaAudit(display);
+  await display.goto("/coach/dance");
+  await display.getByText("Deterministic verification controls").click();
+  await display.getByRole("button", { name: "Load landmark fixture" }).click();
+  const controllerHref = await display.getByRole("link", { name: "Open phone controller" }).getAttribute("href");
+  const phone = await phoneContext.newPage();
+  await phone.goto(controllerHref!);
+  await expect(display.getByText("Phone connected")).toBeVisible({ timeout: 10_000 });
+  await phone.getByText("Deterministic verification controls").click();
+  await expect(phone.getByRole("button", { name: "Use fixture framing" })).toBeEnabled();
+  await phone.getByRole("button", { name: "Use fixture framing" }).click();
+
+  const scenarios = [
+    { tracking: false, pauseOrigin: "phone", stopOrigin: "display" },
+    { tracking: false, pauseOrigin: "display", stopOrigin: "phone" },
+    { tracking: true, pauseOrigin: "tracking-loss", stopOrigin: "display" },
+    { tracking: true, pauseOrigin: "tracking-loss", stopOrigin: "phone" },
+  ] as const;
+
+  for (const scenario of scenarios) {
+    await display.getByRole("button", { name: /Start practice|Practice again/ }).click();
+    await expect(phone.getByRole("button", { name: "Pause", exact: true })).toBeEnabled();
+    await phone.waitForTimeout(250);
+    if (scenario.tracking) {
+      await phone.getByRole("button", { name: "Simulate tracking loss" }).click();
+    } else if (scenario.pauseOrigin === "phone") {
+      await phone.getByRole("button", { name: "Pause", exact: true }).click();
+    } else {
+      await display.getByRole("button", { name: "Pause", exact: true }).click();
+    }
+
+    await expect(display.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
+    await expect(phone.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
+    await expect(display.getByRole("button", { name: "End session" })).toBeVisible();
+    await expect(phone.getByRole("button", { name: "End safely" })).toBeEnabled();
+    const frozenPosition = await readComparisonPosition(phone);
+    const pausesBeforeStop = (await readMediaAudit(display)).pauseCount;
+    if (scenario.stopOrigin === "display") {
+      await display.getByRole("button", { name: "End session" }).focus();
+      await display.getByRole("button", { name: "End session" }).press("Enter");
+    } else {
+      await phone.getByRole("button", { name: "End safely" }).focus();
+      await phone.getByRole("button", { name: "End safely" }).press("Enter");
+    }
+    await expect(display.getByRole("heading", { name: "Session complete" })).toBeVisible();
+    await expect.poll(async () => (await readMediaAudit(display)).pauseCount).toBe(pausesBeforeStop + 1);
+    expect((await readMediaAudit(display)).currentTime).toBeGreaterThanOrEqual(Math.max(0, frozenPosition - 0.1));
+  }
+
+  await Promise.all([displayContext.close(), phoneContext.close()]);
+});
+
+test("Dance display reload restores ready, paused, and running session state", async ({ browser }) => {
+  const displayContext = await browser.newContext({ baseURL, reducedMotion: "reduce" });
+  const phoneContext = await browser.newContext({ baseURL, viewport: { width: 360, height: 780 }, reducedMotion: "reduce" });
+  const display = await displayContext.newPage();
+  await installMediaAudit(display);
+  await display.goto("/coach/dance");
+  await display.getByText("Deterministic verification controls").click();
+  await display.getByRole("button", { name: "Load landmark fixture" }).click();
+  const controllerHref = await display.getByRole("link", { name: "Open phone controller" }).getAttribute("href");
+  const phone = await phoneContext.newPage();
+  await phone.goto(controllerHref!);
+  await expect(display.getByText("Phone connected")).toBeVisible({ timeout: 10_000 });
+  await phone.getByText("Deterministic verification controls").click();
+  await expect(phone.getByRole("button", { name: "Use fixture framing" })).toBeEnabled();
+  await phone.getByRole("button", { name: "Use fixture framing" }).click();
+
+  await display.reload();
+  await expect(display.getByText(/Reference timeline restored from the paired phone/)).toBeVisible({ timeout: 10_000 });
+  await expect(display.getByText(/101 confidence-qualified samples/)).toBeVisible();
+  await expect(display.getByRole("button", { name: "Start practice" })).toBeEnabled();
+
+  await display.getByRole("button", { name: "Start practice" }).click();
+  await expect(phone.getByRole("button", { name: "Pause", exact: true })).toBeEnabled();
+  await phone.waitForTimeout(350);
+  await phone.getByRole("button", { name: "Pause", exact: true }).click();
+  const pausedPosition = await readComparisonPosition(phone);
+  await display.reload();
+  await expect(display.getByText(/Reference timeline restored from the paired phone/)).toBeVisible({ timeout: 10_000 });
+  await expect(display.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
+  await expect(display.getByRole("button", { name: "End session" })).toBeVisible();
+  expect(await readDisplayElapsed(display)).toBeGreaterThanOrEqual(pausedPosition - 0.1);
+
+  await display.getByRole("button", { name: "Resume", exact: true }).click();
+  await phone.waitForTimeout(300);
+  const runningPosition = await readComparisonPosition(phone);
+  await display.reload();
+  await expect(display.getByText(/Reference timeline restored from the paired phone/)).toBeVisible({ timeout: 10_000 });
+  await expect(display.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  await expect(display.getByRole("button", { name: "End session" })).toBeVisible();
+  expect(await readDisplayElapsed(display)).toBeGreaterThanOrEqual(runningPosition - 0.1);
+  const recoveredRunning = await readDisplayElapsed(display);
+  await display.waitForTimeout(250);
+  expect(await readDisplayElapsed(display)).toBeGreaterThan(recoveredRunning);
+  await display.getByRole("button", { name: "End session" }).click();
+  await expect(display.getByRole("heading", { name: "Session complete" })).toBeVisible();
+
   await Promise.all([displayContext.close(), phoneContext.close()]);
 });
 
