@@ -1,4 +1,13 @@
 import type { Gesture } from "./blueprint";
+import type { GamePhase } from "./engine";
+
+export type GameResult = {
+  gameTitle: string;
+  score: number;
+  completedAt: string;
+  durationSeconds: number;
+  eventsReceived: number;
+};
 
 export type SessionMessage =
   | { type: "controller-ready" }
@@ -6,6 +15,9 @@ export type SessionMessage =
   | { type: "gesture"; gesture: Gesture; sentAt: number }
   | { type: "start" }
   | { type: "pause" }
+  | { type: "resume" }
+  | { type: "game-state"; phase: GamePhase; score: number; lives: number; remainingSeconds: number; requiredGesture: Gesture | null }
+  | { type: "result"; result: GameResult }
   | { type: "blueprint"; payload: unknown };
 
 export type SessionConnection = {

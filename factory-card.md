@@ -9,8 +9,9 @@
 - **Stage 01 verification:** PASS
 - **Public state:** Not yet created or deployed
 - **Functional gate:** Pending implementation
-- **Next action:** Prove paired semantic-event spike, then complete the frozen
-  vertical slice without stopping between routine stages
+- **Next action:** Confirm the owner account for the selected no-cost realtime
+  relay, configure private cross-device rooms, then run the real-phone camera
+  and TV/display trace
 - **Next verifier:** Fresh Stage 03 after Build evidence is complete
 
 ## Mandatory stop conditions

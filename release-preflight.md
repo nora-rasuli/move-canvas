@@ -16,7 +16,8 @@
 | Cost/latency | One bounded generation call; target p95 under 8 s and $0.02; deterministic fallback | Passed by plan |
 | Repository/hosting | `nora-rasuli/move-canvas`, Vercel production after audit | Passed |
 | Data/privacy | Raw camera frames remain local; transmit semantic events only | Mandatory |
-| Paid services | Must work in degraded mode without paid AI; hosting within existing account | Passed |
+| Free-tier alternatives | Supabase Free recommended; Firebase Spark, Ably Free, and Cloudflare Durable Objects Free compared in `infrastructure-options.md` | Passed; account choice open |
+| Paid services | No paid service required for the planned launch; hosted dependencies must hard-stop or remain within verified free quota | Passed |
 | Hardest uncertainty | Reliable cross-device pairing and low-latency pose events on real phones | Bounded spike first |
 
 ## Decision

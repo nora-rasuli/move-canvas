@@ -1,4 +1,4 @@
-# Stage 02 Build Report — Checkpoint 1
+# Stage 02 Build Report — Checkpoint 2
 
 **Date:** 2026-11-19  
 **Status:** Active build; not a stage gate
@@ -18,6 +18,10 @@
 - `PAIR-01` spike: a controller and display browser context share a high-entropy
   room, transfer the blueprint, and exchange semantic gesture events. The
   browser verifier observed `Reach Left` and event count `1` on the display.
+- `P-01`, `GAME-01`, `SAVE-01`: a complete timed round now starts from the
+  controller, issues deterministic collect/dodge movement prompts, scores
+  correct poses, times out missed poses, deducts lives, pauses/resumes, ends at
+  the time/life boundary, returns and stores a result, and supports replay.
 - `QA-01`: invalid prompt, camera denied/missing, out-of-frame/model-error,
   waiting, connected, and degraded-provider states are represented.
 
@@ -25,8 +29,14 @@
 
 - `npm run lint`: pass
 - `npm run typecheck`: pass
-- `npm run test`: 3 files / 7 tests pass
+- `npm run test`: 4 files / 10 tests pass
 - `npm run build`: pass
+- `npm run test:e2e`: 2 Playwright tests pass; full two-tab result/replay flow
+  plus keyboard start and zero serious/critical axe violations
+- `npm run verify`: complete lint → strict types → 10 unit/session tests →
+  production build → 2 Playwright tests passed in the unrestricted local test
+  environment; the sandboxed rerun could not bind a port and was not treated as
+  a product failure
 - Browser: fresh “neon jungle” idea → Parrots Dash → calibration entry; malformed
   short prompt; creator-to-setup scroll position; two-tab room/blueprint/gesture
   handshake. A fresh server recheck emitted ordinary `GET /pair 200` and
@@ -35,19 +45,19 @@
 
 ## Known incomplete requirements
 
-- `P-01`, `GAME-01`: no complete visual round yet.
 - `VISION-01`: landmark model needs real phone/light/body-framing evidence and
-  must drive the controller, not only calibration capture.
-- `PAIR-01`: production cross-device relay is environment-dependent; private
-  room authorization and reconnect remain.
-- `A11Y-01`: automated axe and manual keyboard/TV-distance checks remain.
+  must be reproduced driving the controller on a physical phone.
+- `PAIR-01`: same-device controller/display is verified; production
+  cross-device relay remains account-dependent. Current free-tier comparison is
+  in `infrastructure-options.md`; private authorization and reconnect remain.
+- `A11Y-01`: automated axe and keyboard start pass; manual screen-reader,
+  reduced-motion, and TV-distance checks remain.
 - `EVAL-01`, `ECON-01`: frozen AI corpus and measured model/controller profiles
   remain.
-- `SAVE-01`: blueprint persists; completed result/replay does not yet.
 
 ## Next bounded build step
 
-Connect calibrated live poses to semantic room events and feed those events
-into a complete 60-second collect-and-dodge display runtime. Then add reconnect,
-result persistence, and independent real-device verification.
+Select the verified owner account for a no-cost realtime project, configure
+private cross-device rooms, then run the exact camera-to-display flow on a
+physical phone and TV/browser before Stage 03.
 

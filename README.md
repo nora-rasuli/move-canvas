@@ -15,11 +15,13 @@ current Stage 02 slice includes:
 - room-code/QR display pairing with a same-device verification transport and an
   optional Supabase Realtime cross-device transport;
 - semantic controller events only—raw video is neither stored nor transmitted;
-- deterministic game engine primitives and seven passing unit tests.
+- a complete timed collect-and-dodge round with score, lives, pause/resume,
+  early completion, saved result, and replay;
+- deterministic engine/session tests plus a two-tab Playwright and automated
+  accessibility gate.
 
-The complete playable collect-and-dodge round, private production signaling,
-device verification, and deployment are still active factory work. This README
-does not claim they are complete.
+Private production signaling, real-phone verification, and deployment are still
+active factory work. This README does not claim they are complete.
 
 ## Run locally
 
@@ -42,6 +44,7 @@ npm run verify
 ```
 
 This runs lint, strict TypeScript, Vitest, and the production build.
+It also runs the controller/display Playwright flow and axe checks.
 
 ## Product and evidence contract
 
