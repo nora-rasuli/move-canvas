@@ -1,11 +1,6 @@
 import { z } from "zod";
 
-export const gestureSchema = z.enum([
-  "reach_left",
-  "reach_right",
-  "duck",
-  "freeze",
-]);
+export const gestureSchema = z.enum(["reach_left", "reach_right", "duck", "freeze"]);
 
 export type Gesture = z.infer<typeof gestureSchema>;
 
@@ -46,10 +41,69 @@ export type BlueprintProvenance = {
   degradedReason?: "provider-not-configured" | "provider-unavailable";
 };
 
+export const blueprintProvenanceSchema = z
+  .object({
+    generator: z.enum(["ai", "deterministic-fallback"]),
+    model: z.string().max(120).nullable(),
+    generatedAt: z.string().min(1).max(80),
+    sourcePrompt: z.string().trim().min(12).max(280),
+    validation: z.literal("passed"),
+    degradedReason: z.enum(["provider-not-configured", "provider-unavailable"]).optional(),
+  })
+  .strict();
+
 export type BlueprintResponse = {
   blueprint: GameBlueprint;
   provenance: BlueprintProvenance;
 };
+
+export const blueprintResponseSchema = z
+  .object({
+    blueprint: gameBlueprintSchema,
+    provenance: blueprintProvenanceSchema,
+  })
+  .strict();
+
+export const blueprintEditSchema = z
+  .object({
+    field: z.enum(["title", "oneLine", "durationSeconds", "intensity", "gestures"]),
+    previous: z.string().max(320),
+    next: z.string().max(320),
+    editedAt: z.string().min(1).max(80),
+  })
+  .strict();
+
+export type BlueprintEdit = z.infer<typeof blueprintEditSchema>;
+
+export const storedBlueprintRecordSchema = z
+  .object({
+    version: z.literal("1.1"),
+    blueprint: gameBlueprintSchema,
+    provenance: blueprintProvenanceSchema,
+    edits: z.array(blueprintEditSchema).max(12),
+    acceptedAt: z.string().min(1).max(80),
+  })
+  .strict();
+
+export type StoredBlueprintRecord = z.infer<typeof storedBlueprintRecordSchema>;
+
+export function parseStoredBlueprint(raw: string | null): GameBlueprint | null {
+  if (!raw) return null;
+  try {
+    return gameBlueprintSchema.safeParse(JSON.parse(raw)).data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function parseStoredBlueprintRecord(raw: string | null): StoredBlueprintRecord | null {
+  if (!raw) return null;
+  try {
+    return storedBlueprintRecordSchema.safeParse(JSON.parse(raw)).data ?? null;
+  } catch {
+    return null;
+  }
+}
 
 const word = (value: string, fallback: string) => {
   const clean = value
@@ -66,10 +120,28 @@ export function createFallbackBlueprint(prompt: string): GameBlueprint {
   const isForest = /forest|animal|fox|tree|nature/i.test(prompt);
 
   const theme = isOcean
-    ? { world: "Moonlit reef", player: "current rider", collectible: "pearls", hazard: "jellyfish", palette: ["#071A2B", "#25D0AB", "#FFCE65"] as const }
+    ? {
+        world: "Moonlit reef",
+        player: "current rider",
+        collectible: "pearls",
+        hazard: "jellyfish",
+        palette: ["#071A2B", "#25D0AB", "#FFCE65"] as const,
+      }
     : isForest
-      ? { world: "Electric forest", player: "trail keeper", collectible: "fireflies", hazard: "storm clouds", palette: ["#10261F", "#C9F45B", "#F86B4F"] as const }
-      : { world: `${subject} orbit`, player: "star courier", collectible: "star parcels", hazard: "meteors", palette: ["#120D2E", "#7CFFCB", "#FF6B8A"] as const };
+      ? {
+          world: "Electric forest",
+          player: "trail keeper",
+          collectible: "fireflies",
+          hazard: "storm clouds",
+          palette: ["#10261F", "#C9F45B", "#F86B4F"] as const,
+        }
+      : {
+          world: `${subject} orbit`,
+          player: "star courier",
+          collectible: "star parcels",
+          hazard: "meteors",
+          palette: ["#120D2E", "#7CFFCB", "#FF6B8A"] as const,
+        };
 
   return gameBlueprintSchema.parse({
     schemaVersion: "1.0",

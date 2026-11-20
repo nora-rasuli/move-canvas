@@ -57,6 +57,16 @@ export type DanceFeedbackEvent = {
   cue: string;
 };
 
+export const danceFeedbackEventSchema = z
+  .object({
+    timing: z.enum(["on-time", "early", "late", "form-mismatch", "low-confidence"]),
+    region: z.enum(["arms", "torso", "legs"]).nullable(),
+    offsetMs: z.number().finite().min(-90_000).max(90_000).nullable(),
+    confidence: confidenceSchema,
+    cue: z.string().trim().min(1).max(180),
+  })
+  .strict();
+
 export type TennisPhase =
   | "ready"
   | "trophy"
@@ -81,6 +91,38 @@ export type CoachResult = {
   cues: FeedbackCue[];
   limitation: string;
 };
+
+export const tennisPhaseSchema = z.enum([
+  "ready",
+  "trophy",
+  "reach-proxy",
+  "follow-through",
+  "unit-turn",
+  "load",
+  "contact-zone-proxy",
+  "finish",
+]);
+
+export const coachResultSchema = z
+  .object({
+    mode: z.enum(["dance-coach", "tennis-coach"]),
+    completedAt: z.string().min(1).max(80),
+    confidence: confidenceSchema,
+    completedUnits: z.number().int().min(0).max(10_000),
+    cues: z
+      .array(
+        z
+          .object({
+            code: z.string().trim().min(1).max(80),
+            text: z.string().trim().min(1).max(240),
+            confidence: confidenceSchema,
+          })
+          .strict(),
+      )
+      .max(2),
+    limitation: z.string().trim().min(1).max(360),
+  })
+  .strict();
 
 export const DANCE_LIMITATION =
   "Practice feedback compares estimated 2D pose and timing with this reference under the current camera view; it does not grade artistry or provide professional instruction.";

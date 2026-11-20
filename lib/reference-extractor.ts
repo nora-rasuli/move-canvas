@@ -3,7 +3,8 @@ import { buildDanceTimeline, DANCE_SAMPLE_INTERVAL_MS, type DanceOrientation } f
 import type { DanceTimeline } from "./coach";
 
 const WASM_ROOT = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.3/wasm";
-const MODEL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task";
+const MODEL =
+  "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task";
 const SUPPORTED_TYPES = new Set(["video/mp4", "video/webm"]);
 
 export type LoadedReference = {
@@ -20,7 +21,10 @@ export function validateReferenceFile(file: File) {
   if (file.size === 0) throw new Error("The selected reference clip is empty.");
 }
 
-export async function loadReferenceVideo(file: File, video: HTMLVideoElement): Promise<LoadedReference> {
+export async function loadReferenceVideo(
+  file: File,
+  video: HTMLVideoElement,
+): Promise<LoadedReference> {
   validateReferenceFile(file);
   const objectUrl = URL.createObjectURL(file);
   video.src = objectUrl;
@@ -28,9 +32,11 @@ export async function loadReferenceVideo(file: File, video: HTMLVideoElement): P
   video.playsInline = true;
   try {
     await waitFor(video, "loadedmetadata");
-    if (!Number.isFinite(video.duration)) throw new Error("The browser could not read this clip duration.");
+    if (!Number.isFinite(video.duration))
+      throw new Error("The browser could not read this clip duration.");
     const durationMs = Math.round(video.duration * 1_000);
-    if (durationMs < 10_000 || durationMs > 90_000) throw new Error("Reference clips must be between 10 and 90 seconds.");
+    if (durationMs < 10_000 || durationMs > 90_000)
+      throw new Error("Reference clips must be between 10 and 90 seconds.");
     return { objectUrl, durationMs, dispose: () => URL.revokeObjectURL(objectUrl) };
   } catch (error) {
     URL.revokeObjectURL(objectUrl);
@@ -61,7 +67,10 @@ export async function extractReferenceTimeline(
   try {
     for (let at = 0; at <= durationMs; at += DANCE_SAMPLE_INTERVAL_MS) {
       const targetTime = Math.min(at / 1_000, Math.max(0, video.duration - 0.001));
-      if (Math.abs(video.currentTime - targetTime) > 0.001 || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+      if (
+        Math.abs(video.currentTime - targetTime) > 0.001 ||
+        video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA
+      ) {
         video.currentTime = targetTime;
         await waitFor(video, "seeked");
       }
@@ -72,7 +81,8 @@ export async function extractReferenceTimeline(
       if (at % 1_000 === 0) onProgress?.(Math.min(1, at / durationMs));
     }
     onProgress?.(1);
-    if (multiplePeopleDetected) throw new Error("The reference must show one clearly visible person at a time.");
+    if (multiplePeopleDetected)
+      throw new Error("The reference must show one clearly visible person at a time.");
     return buildDanceTimeline(frames, durationMs, orientation);
   } finally {
     landmarker.close();
@@ -81,14 +91,25 @@ export async function extractReferenceTimeline(
 
 function waitFor(video: HTMLVideoElement, eventName: "loadedmetadata" | "seeked") {
   return new Promise<void>((resolve, reject) => {
-    const timeout = window.setTimeout(() => finish(new Error(eventName === "seeked" ? "Reference decoding timed out." : "The browser could not decode this reference clip.")), 8_000);
+    const timeout = window.setTimeout(
+      () =>
+        finish(
+          new Error(
+            eventName === "seeked"
+              ? "Reference decoding timed out."
+              : "The browser could not decode this reference clip.",
+          ),
+        ),
+      8_000,
+    );
     const onEvent = () => finish();
     const onError = () => finish(new Error("The browser could not decode this reference clip."));
     const finish = (error?: Error) => {
       window.clearTimeout(timeout);
       video.removeEventListener(eventName, onEvent);
       video.removeEventListener("error", onError);
-      if (error) reject(error); else resolve();
+      if (error) reject(error);
+      else resolve();
     };
     video.addEventListener(eventName, onEvent, { once: true });
     video.addEventListener("error", onError, { once: true });

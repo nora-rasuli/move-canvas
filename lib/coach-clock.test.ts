@@ -1,7 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
-import { applyCoachControl, coachElapsed, createCoachClock, syncReferenceMedia, type CoachControl } from "./coach-clock";
+import {
+  applyCoachControl,
+  coachElapsed,
+  createCoachClock,
+  syncReferenceMedia,
+  type CoachControl,
+} from "./coach-clock";
 
-const control = (action: CoachControl["action"], elapsedMs: number, id: string = action): CoachControl => ({
+const control = (
+  action: CoachControl["action"],
+  elapsedMs: number,
+  id: string = action,
+): CoachControl => ({
   id,
   action,
   origin: "phone",
@@ -18,8 +28,14 @@ describe("shared coaching clock", () => {
     expect(coachElapsed(paused, 1_900)).toBe(1_000);
     const resumed = applyCoachControl(paused, control("resume", 1_000), 2_000);
     expect(coachElapsed(resumed, 2_500)).toBe(1_500);
-    const duplicatePause = applyCoachControl(resumed, control("pause", 1_500, "same-control"), 2_500);
-    expect(applyCoachControl(duplicatePause, control("pause", 1_500, "same-control"), 2_900)).toMatchObject({ phase: "paused", elapsedMs: 1_500 });
+    const duplicatePause = applyCoachControl(
+      resumed,
+      control("pause", 1_500, "same-control"),
+      2_500,
+    );
+    expect(
+      applyCoachControl(duplicatePause, control("pause", 1_500, "same-control"), 2_900),
+    ).toMatchObject({ phase: "paused", elapsedMs: 1_500 });
   });
 
   it("maps start, pause, resume, and stop to display media at the shared offset", () => {

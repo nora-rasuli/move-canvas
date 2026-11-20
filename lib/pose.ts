@@ -1,4 +1,5 @@
-import type { Gesture } from "./blueprint";
+import { z } from "zod";
+import { gestureSchema, type Gesture } from "./blueprint";
 
 export type Landmark = { x: number; y: number; z?: number; visibility?: number };
 
@@ -12,6 +13,33 @@ export type CalibrationProfile = {
   capturedAt: string;
   samples: Partial<Record<Gesture, PoseFrame>>;
 };
+
+const landmarkSchema = z.object({
+  x: z.number().finite(),
+  y: z.number().finite(),
+  z: z.number().finite().optional(),
+  visibility: z.number().min(0).max(1).optional(),
+});
+
+const poseFrameSchema = z.object({
+  capturedAt: z.number().finite().nonnegative(),
+  landmarks: z.array(landmarkSchema).min(27).max(64),
+});
+
+export const calibrationProfileSchema = z.object({
+  version: z.literal("1.0"),
+  capturedAt: z.string().min(1).max(80),
+  samples: z.partialRecord(gestureSchema, poseFrameSchema),
+});
+
+export function parseCalibrationProfile(raw: string | null): CalibrationProfile | null {
+  if (!raw) return null;
+  try {
+    return calibrationProfileSchema.safeParse(JSON.parse(raw)).data ?? null;
+  } catch {
+    return null;
+  }
+}
 
 const INDEX = {
   leftShoulder: 11,
@@ -41,15 +69,10 @@ export function poseMetric(gesture: Gesture, landmarks: Landmark[]) {
   if (gesture === "reach_left") return leftShoulder.x - leftWrist.x;
   if (gesture === "reach_right") return rightWrist.x - rightShoulder.x;
   if (gesture === "duck") return (leftShoulder.y + rightShoulder.y) / 2;
-  return (
-    Math.abs(leftWrist.y - leftHip.y) + Math.abs(rightWrist.y - rightHip.y)
-  ) / 2;
+  return (Math.abs(leftWrist.y - leftHip.y) + Math.abs(rightWrist.y - rightHip.y)) / 2;
 }
 
-export function classifyPose(
-  landmarks: Landmark[],
-  profile: CalibrationProfile,
-): Gesture | null {
+export function classifyPose(landmarks: Landmark[], profile: CalibrationProfile): Gesture | null {
   if (!hasTrackableBody(landmarks)) return null;
   const order: Gesture[] = ["duck", "reach_left", "reach_right"];
   for (const gesture of order) {

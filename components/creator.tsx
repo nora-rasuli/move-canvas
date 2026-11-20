@@ -1,8 +1,17 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { BlueprintResponse } from "@/lib/blueprint";
+import {
+  blueprintResponseSchema,
+  gameBlueprintSchema,
+  type BlueprintEdit,
+  type BlueprintResponse,
+  type GameBlueprint,
+  type Gesture,
+  type StoredBlueprintRecord,
+} from "@/lib/blueprint";
+import { writeBrowserStorage } from "@/lib/browser-storage";
 
 const SUGGESTIONS = [
   "A space courier where I reach for stars and duck meteors",
@@ -11,13 +20,13 @@ const SUGGESTIONS = [
 ];
 
 export function Creator() {
+  const promptRef = useRef<HTMLTextAreaElement>(null);
   const [prompt, setPrompt] = useState(SUGGESTIONS[0]);
   const [result, setResult] = useState<BlueprintResponse | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [error, setError] = useState("");
 
-  async function createGame(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function generateBlueprint() {
     setError("");
     if (prompt.trim().length < 12) {
       setError("Add a little more detail—include a world, goal, or obstacle.");
@@ -30,14 +39,28 @@ export function Creator() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt }),
       });
-      const payload = (await response.json()) as BlueprintResponse | { error: string };
-      if (!response.ok || "error" in payload) throw new Error("error" in payload ? payload.error : "Unable to create game");
-      setResult(payload);
+      const payload: unknown = await response.json();
+      if (!response.ok) {
+        throw new Error(readApiError(payload));
+      }
+      const parsed = blueprintResponseSchema.safeParse(payload);
+      if (!parsed.success) throw new Error("The blueprint response was invalid. Try again.");
+      setResult(parsed.data);
       setStatus("idle");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to create the game. Try again.");
       setStatus("error");
     }
+  }
+
+  function createGame(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void generateBlueprint();
+  }
+
+  function discardBlueprint() {
+    setResult(null);
+    window.requestAnimationFrame(() => promptRef.current?.focus());
   }
 
   return (
@@ -52,6 +75,7 @@ export function Creator() {
         <label htmlFor="game-idea">Your game idea</label>
         <textarea
           id="game-idea"
+          ref={promptRef}
           value={prompt}
           onChange={(event) => setPrompt(event.target.value)}
           maxLength={280}
@@ -61,7 +85,11 @@ export function Creator() {
           <span>{prompt.length}/280</span>
           <span>Try a place + a goal + an obstacle</span>
         </div>
-        {error ? <p className="form-error" id="prompt-error" role="alert">{error}</p> : null}
+        {error ? (
+          <p className="form-error" id="prompt-error" role="alert">
+            {error}
+          </p>
+        ) : null}
         <div className="suggestions" aria-label="Example game ideas">
           {SUGGESTIONS.map((suggestion, index) => (
             <button type="button" key={suggestion} onClick={() => setPrompt(suggestion)}>
@@ -76,17 +104,80 @@ export function Creator() {
       </form>
 
       <div aria-live="polite" aria-atomic="true">
-        {result ? <BlueprintPreview result={result} /> : null}
+        {result ? (
+          <BlueprintPreview
+            key={result.provenance.generatedAt}
+            result={result}
+            onDiscard={discardBlueprint}
+            onRegenerate={() => void generateBlueprint()}
+          />
+        ) : null}
       </div>
     </section>
   );
 }
 
-function BlueprintPreview({ result }: { result: BlueprintResponse }) {
+function BlueprintPreview({
+  result,
+  onDiscard,
+  onRegenerate,
+}: {
+  result: BlueprintResponse;
+  onDiscard: () => void;
+  onRegenerate: () => void;
+}) {
   const router = useRouter();
-  const game = result.blueprint;
+  const [game, setGame] = useState(result.blueprint);
+  const [editError, setEditError] = useState("");
+
+  function update<K extends keyof GameBlueprint>(field: K, value: GameBlueprint[K]) {
+    setGame((current) => ({ ...current, [field]: value }));
+    setEditError("");
+  }
+
+  function toggleGesture(gesture: Gesture) {
+    const gestures = game.gestures.includes(gesture)
+      ? game.gestures.filter((candidate) => candidate !== gesture)
+      : [...game.gestures, gesture];
+    update("gestures", gestures);
+  }
+
+  function acceptBlueprint() {
+    const parsed = gameBlueprintSchema.safeParse(game);
+    if (!parsed.success) {
+      setEditError("Keep a title, a clear description, and at least two supported movements.");
+      return;
+    }
+    const edits = collectEdits(result.blueprint, parsed.data);
+    const record: StoredBlueprintRecord = {
+      version: "1.1",
+      blueprint: parsed.data,
+      provenance: result.provenance,
+      edits,
+      acceptedAt: new Date().toISOString(),
+    };
+    const blueprintSaved = writeBrowserStorage(
+      "local",
+      "move-canvas:active-blueprint",
+      JSON.stringify(parsed.data),
+    );
+    const recordSaved = writeBrowserStorage(
+      "local",
+      "move-canvas:active-blueprint-record",
+      JSON.stringify(record),
+    );
+    if (!blueprintSaved || !recordSaved) {
+      setEditError("Browser storage is unavailable. Allow local site data, then try again.");
+      return;
+    }
+    router.push("/calibrate");
+  }
+
   return (
-    <article className="blueprint" style={{ "--game-accent": game.theme.palette[1] } as React.CSSProperties}>
+    <article
+      className="blueprint"
+      style={{ "--game-accent": game.theme.palette[1] } as React.CSSProperties}
+    >
       <div className="blueprint-top">
         <div>
           <p className="eyebrow">YOUR PLAYABLE BLUEPRINT</p>
@@ -97,21 +188,100 @@ function BlueprintPreview({ result }: { result: BlueprintResponse }) {
           {result.provenance.generator === "ai" ? "AI arranged" : "Offline blueprint"}
         </span>
       </div>
+      <fieldset className="blueprint-editor">
+        <legend>Review and edit before camera setup</legend>
+        <label>
+          Game title
+          <input
+            value={game.title}
+            maxLength={48}
+            onChange={(event) => update("title", event.target.value)}
+          />
+        </label>
+        <label>
+          Game description
+          <textarea
+            value={game.oneLine}
+            maxLength={120}
+            onChange={(event) => update("oneLine", event.target.value)}
+          />
+        </label>
+        <div className="blueprint-editor-row">
+          <label>
+            Round length
+            <select
+              value={game.durationSeconds}
+              onChange={(event) => update("durationSeconds", Number(event.target.value))}
+            >
+              <option value={30}>30 seconds</option>
+              <option value={60}>60 seconds</option>
+              <option value={90}>90 seconds</option>
+            </select>
+          </label>
+          <label>
+            Energy
+            <select
+              value={game.intensity}
+              onChange={(event) =>
+                update("intensity", event.target.value as GameBlueprint["intensity"])
+              }
+            >
+              <option value="gentle">Gentle</option>
+              <option value="lively">Lively</option>
+            </select>
+          </label>
+        </div>
+        <fieldset className="gesture-editor">
+          <legend>Supported movements · choose at least two</legend>
+          {(["reach_left", "reach_right", "duck", "freeze"] as const).map((gesture) => (
+            <label key={gesture}>
+              <input
+                type="checkbox"
+                checked={game.gestures.includes(gesture)}
+                onChange={() => toggleGesture(gesture)}
+              />
+              {formatGesture(gesture)}
+            </label>
+          ))}
+        </fieldset>
+        {editError ? (
+          <p className="form-error" role="alert">
+            {editError}
+          </p>
+        ) : null}
+      </fieldset>
       <dl className="blueprint-facts">
-        <div><dt>World</dt><dd>{game.theme.world}</dd></div>
-        <div><dt>Round</dt><dd>{game.durationSeconds} seconds</dd></div>
-        <div><dt>Energy</dt><dd>{game.intensity}</dd></div>
-        <div><dt>Moves</dt><dd>{game.gestures.length} calibrated</dd></div>
+        <div>
+          <dt>World</dt>
+          <dd>{game.theme.world}</dd>
+        </div>
+        <div>
+          <dt>Round</dt>
+          <dd>{game.durationSeconds} seconds</dd>
+        </div>
+        <div>
+          <dt>Energy</dt>
+          <dd>{game.intensity}</dd>
+        </div>
+        <div>
+          <dt>Moves</dt>
+          <dd>{game.gestures.length} calibrated</dd>
+        </div>
       </dl>
       <div className="move-list" aria-label="Game movements">
-        {game.gestures.map((gesture) => <span key={gesture}>{formatGesture(gesture)}</span>)}
+        {game.gestures.map((gesture) => (
+          <span key={gesture}>{formatGesture(gesture)}</span>
+        ))}
       </div>
       <div className="blueprint-actions">
-        <button className="button button-primary" type="button" onClick={() => {
-          localStorage.setItem("move-canvas:active-blueprint", JSON.stringify(game));
-          router.push("/calibrate");
-        }}>
+        <button className="button button-primary" type="button" onClick={acceptBlueprint}>
           Save &amp; calibrate <span aria-hidden="true">→</span>
+        </button>
+        <button className="button button-ghost" type="button" onClick={onRegenerate}>
+          Regenerate from idea
+        </button>
+        <button className="button button-ghost" type="button" onClick={onDiscard}>
+          Discard blueprint
         </button>
         <p>Next: use your camera to set a comfortable range. No video is uploaded.</p>
       </div>
@@ -119,7 +289,36 @@ function BlueprintPreview({ result }: { result: BlueprintResponse }) {
   );
 }
 
-function formatGesture(value: string) {
-  return value.split("_").map((part) => part[0].toUpperCase() + part.slice(1)).join(" ");
+function readApiError(value: unknown) {
+  if (value && typeof value === "object" && "error" in value && typeof value.error === "string") {
+    return value.error;
+  }
+  return "Unable to create the game. Try again.";
 }
 
+function collectEdits(original: GameBlueprint, edited: GameBlueprint): BlueprintEdit[] {
+  const editedAt = new Date().toISOString();
+  const fields: Array<BlueprintEdit["field"]> = [
+    "title",
+    "oneLine",
+    "durationSeconds",
+    "intensity",
+    "gestures",
+  ];
+  return fields.flatMap((field) => {
+    const previous = serializeEditValue(original[field]);
+    const next = serializeEditValue(edited[field]);
+    return previous === next ? [] : [{ field, previous, next, editedAt }];
+  });
+}
+
+function serializeEditValue(value: GameBlueprint[keyof GameBlueprint]) {
+  return Array.isArray(value) ? value.join(", ") : String(value);
+}
+
+function formatGesture(value: string) {
+  return value
+    .split("_")
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join(" ");
+}

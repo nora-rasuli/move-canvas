@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { GameBlueprint, Gesture } from "@/lib/blueprint";
+import { parseStoredBlueprint, type GameBlueprint, type Gesture } from "@/lib/blueprint";
+import { readBrowserStorage, writeBrowserStorage } from "@/lib/browser-storage";
 import { hasTrackableBody, type CalibrationProfile, type PoseFrame } from "@/lib/pose";
 import { startPoseSession, type PoseSession } from "@/lib/pose-landmarker";
 
@@ -21,12 +22,12 @@ export function CalibrationStudio() {
   const [camera, setCamera] = useState<CameraState>("idle");
   const [pose, setPose] = useState<PoseState>("idle");
   const [captured, setCaptured] = useState<Gesture[]>([]);
+  const [storageError, setStorageError] = useState("");
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
     const timer = window.setTimeout(() => {
-      const stored = localStorage.getItem("move-canvas:active-blueprint");
-      setGame(stored ? (JSON.parse(stored) as GameBlueprint) : null);
+      setGame(parseStoredBlueprint(readBrowserStorage("local", "move-canvas:active-blueprint")));
     }, 0);
     return () => {
       window.clearTimeout(timer);
@@ -91,7 +92,9 @@ export function CalibrationStudio() {
       <main className="setup-empty" id="main">
         <p className="eyebrow">NO BLUEPRINT YET</p>
         <h1>Create a game before you calibrate.</h1>
-        <Link className="button button-primary" href="/#create">Back to creator</Link>
+        <Link className="button button-primary" href="/#create">
+          Back to creator
+        </Link>
       </main>
     );
   }
@@ -104,14 +107,19 @@ export function CalibrationStudio() {
       capturedAt: new Date().toISOString(),
       samples: samplesRef.current,
     };
-    localStorage.setItem("move-canvas:calibration", JSON.stringify(profile));
+    if (!writeBrowserStorage("local", "move-canvas:calibration", JSON.stringify(profile))) {
+      setStorageError("Browser storage is unavailable. Allow local site data, then try again.");
+      return;
+    }
     router.push("/pair");
   }
 
   return (
     <main className="calibration" id="main">
       <header className="setup-header">
-        <Link className="brand" href="/" aria-label="Move Canvas home"><span aria-hidden="true">M</span>Move Canvas</Link>
+        <Link className="brand" href="/" aria-label="Move Canvas home">
+          <span aria-hidden="true">M</span>Move Canvas
+        </Link>
         <p>Set up · 1 of 2</p>
       </header>
       <section className="calibration-layout">
@@ -119,14 +127,32 @@ export function CalibrationStudio() {
           <video ref={videoRef} muted playsInline aria-label="Your live calibration camera" />
           {camera !== "ready" ? (
             <div className="camera-permission">
-              <span className="camera-icon" aria-hidden="true">◉</span>
+              <span className="camera-icon" aria-hidden="true">
+                ◉
+              </span>
               <h1>Find your play space.</h1>
-              <p>Prop your phone up so your head, hands, and knees fit in frame. Video stays on this device.</p>
-              <button className="button button-primary" type="button" onClick={enableCamera} disabled={camera === "requesting"}>
+              <p>
+                Prop your phone up so your head, hands, and knees fit in frame. Video stays on this
+                device.
+              </p>
+              <button
+                className="button button-primary"
+                type="button"
+                onClick={enableCamera}
+                disabled={camera === "requesting"}
+              >
                 {camera === "requesting" ? "Opening camera…" : "Enable camera"}
               </button>
-              {camera === "denied" ? <p className="form-error" role="alert">Camera access was blocked. Allow it in browser settings, then try again.</p> : null}
-              {camera === "missing" ? <p className="form-error" role="alert">This browser does not expose a camera. Open this page on your phone.</p> : null}
+              {camera === "denied" ? (
+                <p className="form-error" role="alert">
+                  Camera access was blocked. Allow it in browser settings, then try again.
+                </p>
+              ) : null}
+              {camera === "missing" ? (
+                <p className="form-error" role="alert">
+                  This browser does not expose a camera. Open this page on your phone.
+                </p>
+              ) : null}
             </div>
           ) : (
             <div className="frame-guide" aria-hidden="true">
@@ -137,44 +163,77 @@ export function CalibrationStudio() {
 
         <div className="calibration-copy">
           <p className="eyebrow">{game.title.toUpperCase()}</p>
-          <h1>Teach the game<br />your comfortable moves.</h1>
-          <p>Move only as far as feels natural. These captures set personal thresholds; they are not a fitness score.</p>
+          <h1>
+            Teach the game
+            <br />
+            your comfortable moves.
+          </h1>
+          <p>
+            Move only as far as feels natural. These captures set personal thresholds; they are not
+            a fitness score.
+          </p>
           <ol className="capture-list">
             {game.gestures.map((gesture, index) => {
               const done = captured.includes(gesture);
               return (
                 <li key={gesture} className={done ? "captured" : ""}>
                   <span>{done ? "✓" : index + 1}</span>
-                  <div><strong>{formatGesture(gesture)}</strong><small>{instruction(gesture)}</small></div>
-                  <button type="button" disabled={pose !== "tracking" || done} onClick={() => capture(gesture)}>
+                  <div>
+                    <strong>{formatGesture(gesture)}</strong>
+                    <small>{instruction(gesture)}</small>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={pose !== "tracking" || done}
+                    onClick={() => capture(gesture)}
+                  >
                     {done ? "Captured" : "Capture"}
                   </button>
                 </li>
               );
             })}
           </ol>
-          <button className="button button-ink setup-next" type="button" disabled={!complete} onClick={saveCalibration}>
+          <button
+            className="button button-ink setup-next"
+            type="button"
+            disabled={!complete}
+            onClick={saveCalibration}
+          >
             Pair a display <span aria-hidden="true">→</span>
           </button>
-          <p className="setup-note">Landmarks are processed on this device. Move Canvas stores the four calibration snapshots locally; it does not store or upload video frames.</p>
+          {storageError ? (
+            <p className="form-error" role="alert">
+              {storageError}
+            </p>
+          ) : null}
+          <p className="setup-note">
+            Landmarks are processed on this device. Move Canvas stores the four calibration
+            snapshots locally; it does not store or upload video frames.
+          </p>
         </div>
       </section>
     </main>
   );
 }
 
-const formatGesture = (value: string) => value.split("_").map((part) => part[0].toUpperCase() + part.slice(1)).join(" ");
-const instruction = (gesture: Gesture) => ({
-  reach_left: "Reach left without stepping out of frame.",
-  reach_right: "Reach right without leaning past comfort.",
-  duck: "Lower only as far as feels easy to repeat.",
-  freeze: "Return to your neutral standing pose.",
-})[gesture];
+const formatGesture = (value: string) =>
+  value
+    .split("_")
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join(" ");
+const instruction = (gesture: Gesture) =>
+  ({
+    reach_left: "Reach left without stepping out of frame.",
+    reach_right: "Reach right without leaning past comfort.",
+    duck: "Lower only as far as feels easy to repeat.",
+    freeze: "Return to your neutral standing pose.",
+  })[gesture];
 
-const poseLabel = (state: PoseState) => ({
-  idle: "Stand here",
-  loading: "Starting pose tracking…",
-  tracking: "Body in frame",
-  "out-of-frame": "Step back until your body is visible",
-  error: "Pose model could not start",
-})[state];
+const poseLabel = (state: PoseState) =>
+  ({
+    idle: "Stand here",
+    loading: "Starting pose tracking…",
+    tracking: "Body in frame",
+    "out-of-frame": "Step back until your body is visible",
+    error: "Pose model could not start",
+  })[state];

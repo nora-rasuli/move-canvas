@@ -34,7 +34,8 @@ export function normalizeDancePose(
 ): NormalizedReferenceFrame | null {
   const selected = DANCE_JOINTS.map((index) => landmarks[index]);
   if (selected.some((point) => !point)) return null;
-  const confidence = selected.reduce((sum, point) => sum + (point.visibility ?? 1), 0) / selected.length;
+  const confidence =
+    selected.reduce((sum, point) => sum + (point.visibility ?? 1), 0) / selected.length;
   if (confidence < DANCE_MIN_CONFIDENCE) return null;
 
   const leftHip = selected[6];
@@ -42,14 +43,20 @@ export function normalizeDancePose(
   const centerX = (leftHip.x + rightHip.x) / 2;
   const centerY = (leftHip.y + rightHip.y) / 2;
   const shoulderSpan = Math.hypot(selected[0].x - selected[1].x, selected[0].y - selected[1].y);
-  const torsoHeight = Math.hypot((selected[0].x + selected[1].x) / 2 - centerX, (selected[0].y + selected[1].y) / 2 - centerY);
+  const torsoHeight = Math.hypot(
+    (selected[0].x + selected[1].x) / 2 - centerX,
+    (selected[0].y + selected[1].y) / 2 - centerY,
+  );
   const scale = Math.max(shoulderSpan, torsoHeight, 0.08);
   const mirror = orientation === "mirror" || orientation === "lead-right";
-  const points = selected.map((point) => [
-    round3(((point.x - centerX) / scale) * (mirror ? -1 : 1)),
-    round3((point.y - centerY) / scale),
-    round3(point.visibility ?? 1),
-  ] as NormalizedPoint);
+  const points = selected.map(
+    (point) =>
+      [
+        round3(((point.x - centerX) / scale) * (mirror ? -1 : 1)),
+        round3((point.y - centerY) / scale),
+        round3(point.visibility ?? 1),
+      ] as NormalizedPoint,
+  );
 
   return { t: Math.max(0, Math.round(capturedAt)), c: round3(confidence), p: points };
 }
@@ -70,7 +77,8 @@ export function buildDanceTimeline(
     nextSampleAt = frame.capturedAt + DANCE_SAMPLE_INTERVAL_MS;
     if (sample) normalized.push(sample);
   }
-  if (!normalized.length) throw new Error("No single, clearly visible person was found in the reference clip.");
+  if (!normalized.length)
+    throw new Error("No single, clearly visible person was found in the reference clip.");
   const timeline: DanceTimeline = {
     version: "1.1",
     durationMs: Math.round(durationMs),
@@ -91,30 +99,71 @@ export function compareDancePose(
   calibration?: CoachCalibrationRecord | null,
 ): DanceFeedbackEvent {
   const user = normalizeDancePose(landmarks, timeline.orientation, elapsedMs);
-  if (!user) return { timing: "low-confidence", region: null, offsetMs: null, confidence: 0, cue: "Pause and bring your full body back into view." };
+  if (!user)
+    return {
+      timing: "low-confidence",
+      region: null,
+      offsetMs: null,
+      confidence: 0,
+      cue: "Pause and bring your full body back into view.",
+    };
   const nearby = timeline.frames.filter((frame) => Math.abs(frame.t - elapsedMs) <= 1_000);
-  if (!nearby.length) return { timing: "low-confidence", region: null, offsetMs: null, confidence: user.c, cue: "Waiting for a clear reference pose." };
+  if (!nearby.length)
+    return {
+      timing: "low-confidence",
+      region: null,
+      offsetMs: null,
+      confidence: user.c,
+      cue: "Waiting for a clear reference pose.",
+    };
 
-  const ranked = nearby.map((frame) => ({ frame, distance: poseDistance(user, frame) })).sort((a, b) => a.distance - b.distance);
+  const ranked = nearby
+    .map((frame) => ({ frame, distance: poseDistance(user, frame) }))
+    .sort((a, b) => a.distance - b.distance);
   const best = ranked[0];
   const offsetMs = best.frame.t - elapsedMs;
-  const region = largestRegionMismatch(user, timeline.frames.reduce((closest, frame) => Math.abs(frame.t - elapsedMs) < Math.abs(closest.t - elapsedMs) ? frame : closest));
+  const region = largestRegionMismatch(
+    user,
+    timeline.frames.reduce((closest, frame) =>
+      Math.abs(frame.t - elapsedMs) < Math.abs(closest.t - elapsedMs) ? frame : closest,
+    ),
+  );
   const confidence = round3(Math.min(user.c, best.frame.c));
 
   if (best.distance > calibrationThresholds(calibration).danceMismatchDistance) {
     return { timing: "form-mismatch", region, offsetMs, confidence, cue: regionCue(region) };
   }
   if (offsetMs >= DANCE_TIMING_THRESHOLD_MS) {
-    return { timing: "early", region: null, offsetMs, confidence, cue: "Hold this shape a moment longer before the next change." };
+    return {
+      timing: "early",
+      region: null,
+      offsetMs,
+      confidence,
+      cue: "Hold this shape a moment longer before the next change.",
+    };
   }
   if (offsetMs <= -DANCE_TIMING_THRESHOLD_MS) {
-    return { timing: "late", region: null, offsetMs, confidence, cue: "Begin the next shape a little sooner relative to the reference." };
+    return {
+      timing: "late",
+      region: null,
+      offsetMs,
+      confidence,
+      cue: "Begin the next shape a little sooner relative to the reference.",
+    };
   }
-  return { timing: "on-time", region: null, offsetMs, confidence, cue: "Timing is aligned with the selected reference." };
+  return {
+    timing: "on-time",
+    region: null,
+    offsetMs,
+    confidence,
+    cue: "Timing is aligned with the selected reference.",
+  };
 }
 
 export function summarizeDanceEvents(events: DanceFeedbackEvent[]): CoachResult {
-  const qualified = events.filter((event) => event.timing !== "low-confidence" && event.confidence >= DANCE_MIN_CONFIDENCE);
+  const qualified = events.filter(
+    (event) => event.timing !== "low-confidence" && event.confidence >= DANCE_MIN_CONFIDENCE,
+  );
   const counts = new Map<string, { event: DanceFeedbackEvent; count: number }>();
   for (const event of qualified) {
     if (event.timing === "on-time") continue;
@@ -125,8 +174,17 @@ export function summarizeDanceEvents(events: DanceFeedbackEvent[]): CoachResult 
   const cues = [...counts.values()]
     .sort((a, b) => b.count - a.count)
     .slice(0, 2)
-    .map(({ event }) => ({ code: `${event.timing}-${event.region ?? "timing"}`, text: event.cue, confidence: event.confidence }));
-  if (!cues.length) cues.push({ code: "aligned", text: "Your clearest poses stayed close to the selected reference timing.", confidence: average(qualified.map((event) => event.confidence)) });
+    .map(({ event }) => ({
+      code: `${event.timing}-${event.region ?? "timing"}`,
+      text: event.cue,
+      confidence: event.confidence,
+    }));
+  if (!cues.length)
+    cues.push({
+      code: "aligned",
+      text: "Your clearest poses stayed close to the selected reference timing.",
+      confidence: average(qualified.map((event) => event.confidence)),
+    });
   return {
     mode: "dance-coach",
     completedAt: new Date().toISOString(),
@@ -138,12 +196,28 @@ export function summarizeDanceEvents(events: DanceFeedbackEvent[]): CoachResult 
 }
 
 function poseDistance(a: NormalizedReferenceFrame, b: NormalizedReferenceFrame) {
-  return a.p.reduce((sum, point, index) => sum + Math.hypot(point[0] - b.p[index][0], point[1] - b.p[index][1]), 0) / a.p.length;
+  return (
+    a.p.reduce(
+      (sum, point, index) => sum + Math.hypot(point[0] - b.p[index][0], point[1] - b.p[index][1]),
+      0,
+    ) / a.p.length
+  );
 }
 
-function largestRegionMismatch(a: NormalizedReferenceFrame, b: NormalizedReferenceFrame): BodyRegion {
+function largestRegionMismatch(
+  a: NormalizedReferenceFrame,
+  b: NormalizedReferenceFrame,
+): BodyRegion {
   return (Object.entries(REGIONS) as [BodyRegion, number[]][])
-    .map(([region, indices]) => ({ region, distance: indices.reduce((sum, index) => sum + Math.hypot(a.p[index][0] - b.p[index][0], a.p[index][1] - b.p[index][1]), 0) / indices.length }))
+    .map(([region, indices]) => ({
+      region,
+      distance:
+        indices.reduce(
+          (sum, index) =>
+            sum + Math.hypot(a.p[index][0] - b.p[index][0], a.p[index][1] - b.p[index][1]),
+          0,
+        ) / indices.length,
+    }))
     .sort((a, b) => b.distance - a.distance)[0].region;
 }
 
@@ -154,4 +228,5 @@ function regionCue(region: BodyRegion) {
 }
 
 const round3 = (value: number) => Math.round(value * 1_000) / 1_000;
-const average = (values: number[]) => values.length ? round3(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
+const average = (values: number[]) =>
+  values.length ? round3(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;

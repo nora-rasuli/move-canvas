@@ -3,10 +3,34 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
-import { gameBlueprintSchema, type GameBlueprint, type Gesture } from "@/lib/blueprint";
-import { connectSession, createPlayer, createRoomCode, type GameResult, type Player, type PlayerScore, type SessionConnection } from "@/lib/channel";
+import {
+  parseStoredBlueprint,
+  parseStoredBlueprintRecord,
+  type GameBlueprint,
+  type Gesture,
+} from "@/lib/blueprint";
+import {
+  readBrowserStorage,
+  removeBrowserStorage,
+  writeBrowserStorage,
+} from "@/lib/browser-storage";
+import {
+  connectSession,
+  createPlayer,
+  createRoomCode,
+  playerSchema,
+  type GameResult,
+  type Player,
+  type PlayerScore,
+  type SessionConnection,
+} from "@/lib/channel";
 import type { GamePhase } from "@/lib/engine";
-import { classifyPose, hasTrackableBody, type CalibrationProfile } from "@/lib/pose";
+import {
+  classifyPose,
+  hasTrackableBody,
+  parseCalibrationProfile,
+  type CalibrationProfile,
+} from "@/lib/pose";
 import { startPoseSession, type PoseSession } from "@/lib/pose-landmarker";
 
 type ControllerState = {
@@ -33,7 +57,7 @@ export function PairingRoom() {
   const [code, setCode] = useState("");
   const [origin, setOrigin] = useState("");
   const [gameJson, setGameJson] = useState<string | null>(null);
-  const game = useMemo(() => gameJson ? (JSON.parse(gameJson) as GameBlueprint) : null, [gameJson]);
+  const game = useMemo(() => parseStoredBlueprint(gameJson), [gameJson]);
   const [player, setPlayer] = useState<Player | null>(null);
   const [isJoining, setIsJoining] = useState(false);
   const [connected, setConnected] = useState(false);
@@ -52,19 +76,23 @@ export function PairingRoom() {
   const streamRef = useRef<MediaStream | null>(null);
   const poseSessionRef = useRef<PoseSession | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const lastPoseRef = useRef<{ gesture: Gesture | null; sentAt: number }>({ gesture: null, sentAt: 0 });
+  const lastPoseRef = useRef<{ gesture: Gesture | null; sentAt: number }>({
+    gesture: null,
+    sentAt: 0,
+  });
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setCode(readRoomCode());
       setIsJoining(new URLSearchParams(window.location.search).has("code"));
       setOrigin(window.location.origin);
-      setGameJson(localStorage.getItem("move-canvas:active-blueprint"));
+      setGameJson(readBrowserStorage("local", "move-canvas:active-blueprint"));
       const savedPlayer = readPlayer();
       playerRef.current = savedPlayer;
       setPlayer(savedPlayer);
-      const profile = localStorage.getItem("move-canvas:calibration");
-      calibrationRef.current = profile ? (JSON.parse(profile) as CalibrationProfile) : null;
+      calibrationRef.current = parseCalibrationProfile(
+        readBrowserStorage("local", "move-canvas:calibration"),
+      );
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -77,7 +105,8 @@ export function PairingRoom() {
     if (!transportReady || connected || !player || !connectionRef.current) return;
     const announce = () => {
       void connectionRef.current?.send({ type: "controller-ready", player });
-      if (gameRef.current) void connectionRef.current?.send({ type: "blueprint", payload: gameRef.current });
+      if (gameRef.current)
+        void connectionRef.current?.send({ type: "blueprint", payload: gameRef.current });
     };
     announce();
     const timer = window.setInterval(announce, 500);
@@ -92,27 +121,45 @@ export function PairingRoom() {
       connectionPromiseRef.current = connectSession(
         code,
         (message) => {
-        if (message.type === "display-ready") {
-          setConnected(true);
-        }
-        if (message.type === "blueprint") {
-          const parsed = gameBlueprintSchema.safeParse(message.payload);
-          if (parsed.success) setGameJson(JSON.stringify(parsed.data));
-        }
-        if (message.type === "game-state") {
-          setController({
-            phase: message.phase,
-            score: message.score,
-            lives: message.lives,
-            remainingSeconds: message.remainingSeconds,
-            requiredGesture: message.requiredGesture,
-            players: message.players,
-          });
-        }
-        if (message.type === "result") {
-          setResult(message.result);
-          localStorage.setItem("move-canvas:last-result", JSON.stringify(message.result));
-        }
+          if (message.type === "display-ready") {
+            setConnected(true);
+          }
+          if (message.type === "blueprint") setGameJson(JSON.stringify(message.payload));
+          if (message.type === "game-state") {
+            setController({
+              phase: message.phase,
+              score: message.score,
+              lives: message.lives,
+              remainingSeconds: message.remainingSeconds,
+              requiredGesture: message.requiredGesture,
+              players: message.players,
+            });
+          }
+          if (message.type === "result") {
+            setResult(message.result);
+            const blueprintRecord = parseStoredBlueprintRecord(
+              readBrowserStorage("local", "move-canvas:active-blueprint-record"),
+            );
+            writeBrowserStorage(
+              "local",
+              "move-canvas:last-result",
+              JSON.stringify({
+                ...message.result,
+                provenance: blueprintRecord
+                  ? {
+                      generator: blueprintRecord.provenance.generator,
+                      model: blueprintRecord.provenance.model,
+                      sourcePrompt: blueprintRecord.provenance.sourcePrompt,
+                      generatedAt: blueprintRecord.provenance.generatedAt,
+                      acceptedAt: blueprintRecord.acceptedAt,
+                      validation: blueprintRecord.provenance.validation,
+                      edits: blueprintRecord.edits,
+                      calibrationVersion: calibrationRef.current?.version ?? null,
+                    }
+                  : null,
+              }),
+            );
+          }
         },
         setTransportReady,
       );
@@ -133,18 +180,23 @@ export function PairingRoom() {
         if (connectionGenerationRef.current !== cleanupGeneration) return;
         void connectionPromise.then(async (connection) => {
           const leavingPlayer = playerRef.current;
-          if (leavingPlayer) await connection.send({ type: "controller-left", playerId: leavingPlayer.id });
+          if (leavingPlayer)
+            await connection.send({ type: "controller-left", playerId: leavingPlayer.id });
           await connection.close();
-          if (connectionPromiseRef.current === connectionPromise) connectionPromiseRef.current = null;
+          if (connectionPromiseRef.current === connectionPromise)
+            connectionPromiseRef.current = null;
         });
       }, 0);
     };
   }, [code, player?.id]);
 
-  useEffect(() => () => {
-    poseSessionRef.current?.stop();
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-  }, []);
+  useEffect(
+    () => () => {
+      poseSessionRef.current?.stop();
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+    },
+    [],
+  );
 
   async function enableMotionController() {
     if (!navigator.mediaDevices?.getUserMedia || !videoRef.current || !calibrationRef.current) {
@@ -153,7 +205,10 @@ export function PairingRoom() {
     }
     setMotion("requesting");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" },
+        audio: false,
+      });
       streamRef.current = stream;
       videoRef.current.srcObject = stream;
       await videoRef.current.play();
@@ -192,38 +247,98 @@ export function PairingRoom() {
     const next = { ...player, name: name.slice(0, 18) };
     playerRef.current = next;
     setPlayer(next);
-    localStorage.setItem("move-canvas:player", JSON.stringify(next));
+    writeBrowserStorage("local", "move-canvas:player", JSON.stringify(next));
     void connectionRef.current?.send({ type: "controller-ready", player: next });
   }
 
   const displayUrl = origin ? `${origin}/display/${code}` : "";
-  const myScore = player ? controller.players.find((entry) => entry.id === player.id)?.score ?? 0 : 0;
+  const myScore = player
+    ? (controller.players.find((entry) => entry.id === player.id)?.score ?? 0)
+    : 0;
 
-  if (!game) return (
-    <main className="setup-empty">
-      <p className="eyebrow">ROOM {code || "OPENING"}</p>
-      <h1>{isJoining ? "Waiting for the host to share the game." : "Create and calibrate a game first."}</h1>
-      {isJoining && player ? <label className="player-name player-name-light">Playing as<input aria-label="Player name" value={player.name} maxLength={18} onChange={(event) => updatePlayerName(event.target.value)} /></label> : null}
-      {!isJoining ? <Link className="button button-primary" href="/#create">Create a game</Link> : null}
-    </main>
-  );
+  if (!game)
+    return (
+      <main className="setup-empty" id="main">
+        <p className="eyebrow">ROOM {code || "OPENING"}</p>
+        <h1>
+          {isJoining
+            ? "Waiting for the host to share the game."
+            : "Create and calibrate a game first."}
+        </h1>
+        {isJoining && player ? (
+          <label className="player-name player-name-light">
+            Playing as
+            <input
+              aria-label="Player name"
+              value={player.name}
+              maxLength={18}
+              onChange={(event) => updatePlayerName(event.target.value)}
+            />
+          </label>
+        ) : null}
+        {!isJoining ? (
+          <Link className="button button-primary" href="/#create">
+            Create a game
+          </Link>
+        ) : null}
+      </main>
+    );
 
   return (
     <main className="pair-page" id="main">
-      <header className="setup-header"><span className="brand"><span aria-hidden="true">M</span>Move Canvas</span><p>Controller</p></header>
+      <header className="setup-header">
+        <span className="brand">
+          <span aria-hidden="true">M</span>Move Canvas
+        </span>
+        <p>Controller</p>
+      </header>
       {!connected ? (
         <section className="pair-layout">
           <div className="pair-copy">
             <p className="eyebrow">PUT {game.title.toUpperCase()} ON THE BIG SCREEN</p>
             <h1>Pair your display.</h1>
             <p>Open this link on the TV browser. Keep this phone as the controller.</p>
-            {player ? <label className="player-name">Playing as<input aria-label="Player name" value={player.name} maxLength={18} onChange={(event) => updatePlayerName(event.target.value)} /></label> : null}
-            <div className="room-code"><span>Room code</span><strong>{code}</strong></div>
-            {displayUrl ? <a className="button button-primary" href={displayUrl} target="_blank" rel="noreferrer">Open display</a> : null}
-            <p className="transport-note">{mode === "supabase" ? "Cross-device relay ready" : "Local verification mode · production relay not configured"}</p>
+            {player ? (
+              <label className="player-name">
+                Playing as
+                <input
+                  aria-label="Player name"
+                  value={player.name}
+                  maxLength={18}
+                  onChange={(event) => updatePlayerName(event.target.value)}
+                />
+              </label>
+            ) : null}
+            <div className="room-code">
+              <span>Room code</span>
+              <strong>{code}</strong>
+            </div>
+            {displayUrl ? (
+              <a
+                className="button button-primary"
+                href={displayUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open display
+              </a>
+            ) : null}
+            <p className="transport-note">
+              {mode === "supabase"
+                ? "Cross-device relay ready"
+                : "Local verification mode · production relay not configured"}
+            </p>
           </div>
           <div className="qr-card">
-            {displayUrl ? <QRCodeSVG value={displayUrl} size={220} bgColor="#f5f0e7" fgColor="#171524" level="M" /> : null}
+            {displayUrl ? (
+              <QRCodeSVG
+                value={displayUrl}
+                size={220}
+                bgColor="#f5f0e7"
+                fgColor="#171524"
+                level="M"
+              />
+            ) : null}
             <p>{transportReady ? "Waiting for the display…" : "Opening the room…"}</p>
             <span className="connection-light" aria-hidden="true" />
           </div>
@@ -232,23 +347,100 @@ export function PairingRoom() {
         <section className="live-controller" aria-labelledby="controller-title">
           <div className="controller-camera">
             <video ref={videoRef} muted playsInline aria-label="Live motion-controller camera" />
-            <div className="motion-status"><span className={motion === "tracking" ? "connection-light connected" : "connection-light"} />{motionLabel(motion)}</div>
-            {motion === "idle" || motion === "error" ? <button className="button button-primary" type="button" onClick={enableMotionController}>{motion === "error" ? "Try camera again" : "Enable motion control"}</button> : null}
-            {detectedGesture ? <strong className="detected-pose">{formatGesture(detectedGesture)}</strong> : null}
+            <div className="motion-status">
+              <span
+                className={
+                  motion === "tracking" ? "connection-light connected" : "connection-light"
+                }
+              />
+              {motionLabel(motion)}
+            </div>
+            {motion === "idle" || motion === "error" ? (
+              <button
+                className="button button-primary"
+                type="button"
+                onClick={enableMotionController}
+              >
+                {motion === "error" ? "Try camera again" : "Enable motion control"}
+              </button>
+            ) : null}
+            {detectedGesture ? (
+              <strong className="detected-pose">{formatGesture(detectedGesture)}</strong>
+            ) : null}
           </div>
           <div className="controller-console">
             <p className="eyebrow">{game.title.toUpperCase()} · DISPLAY CONNECTED</p>
-            <h1 id="controller-title">{result ? `${result.score} points` : controller.phase === "playing" ? formatGesture(controller.requiredGesture ?? "freeze") : controller.phase === "paused" ? "Round paused" : "Ready to move?"}</h1>
-            <div className="controller-stats"><span>My score <strong>{myScore}</strong></span><span>Team <strong>{controller.score}</strong></span><span>Time <strong>{controller.remainingSeconds}</strong></span></div>
-            {player ? <div className="player-strip" aria-label="Players in room" role="list">{controller.players.map((entry) => <span className={entry.id === player.id ? "current-player" : ""} key={entry.id} role="listitem" style={{ "--player-color": entry.color } as React.CSSProperties}>{entry.name} <strong>{entry.score}</strong></span>)}</div> : null}
-            {controller.phase === "ready" || controller.phase === "finished" ? <button className="button button-primary round-action" type="button" onClick={startRound}>{controller.phase === "finished" ? "Play again" : "Start round"}</button> : <button className="button button-ink round-action" type="button" onClick={togglePause}>{controller.phase === "paused" ? "Resume round" : "Pause round"}</button>}
+            <h1 id="controller-title">
+              {result
+                ? `${result.score} points`
+                : controller.phase === "playing"
+                  ? formatGesture(controller.requiredGesture ?? "freeze")
+                  : controller.phase === "paused"
+                    ? "Round paused"
+                    : "Ready to move?"}
+            </h1>
+            <div className="controller-stats">
+              <span>
+                My score <strong>{myScore}</strong>
+              </span>
+              <span>
+                Team <strong>{controller.score}</strong>
+              </span>
+              <span>
+                Time <strong>{controller.remainingSeconds}</strong>
+              </span>
+            </div>
+            {player ? (
+              <div className="player-strip" aria-label="Players in room" role="list">
+                {controller.players.map((entry) => (
+                  <span
+                    className={entry.id === player.id ? "current-player" : ""}
+                    key={entry.id}
+                    role="listitem"
+                    style={{ "--player-color": entry.color } as React.CSSProperties}
+                  >
+                    {entry.name} <strong>{entry.score}</strong>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {controller.phase === "ready" || controller.phase === "finished" ? (
+              <button
+                className="button button-primary round-action"
+                type="button"
+                onClick={startRound}
+              >
+                {controller.phase === "finished" ? "Play again" : "Start round"}
+              </button>
+            ) : (
+              <button
+                className="button button-ink round-action"
+                type="button"
+                onClick={togglePause}
+              >
+                {controller.phase === "paused" ? "Resume round" : "Pause round"}
+              </button>
+            )}
             <details className="manual-controls">
               <summary>Keyboard and testing controls</summary>
               <div className="gesture-grid">
-                {game.gestures.map((gesture) => <button type="button" key={gesture} onClick={() => void sendGestureMessage(connectionRef.current, playerRef.current?.id, gesture)}>{formatGesture(gesture)}</button>)}
+                {game.gestures.map((gesture) => (
+                  <button
+                    type="button"
+                    key={gesture}
+                    onClick={() =>
+                      void sendGestureMessage(connectionRef.current, playerRef.current?.id, gesture)
+                    }
+                  >
+                    {formatGesture(gesture)}
+                  </button>
+                ))}
               </div>
             </details>
-            <p className="privacy-note">Camera frames stay on this phone. The display receives movement names, game state, and timing only.</p>
+            <p className="privacy-note">
+              Camera frames stay on this phone. The display receives movement names, game state, and
+              timing only.
+            </p>
           </div>
         </section>
       )}
@@ -256,37 +448,57 @@ export function PairingRoom() {
   );
 }
 
-const formatGesture = (gesture: string) => gesture.split("_").map((part) => part[0].toUpperCase() + part.slice(1)).join(" ");
+const formatGesture = (gesture: string) =>
+  gesture
+    .split("_")
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join(" ");
 
 const readRoomCode = () => {
-  const joinedCode = new URLSearchParams(window.location.search).get("code")?.toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 12);
+  const joinedCode = new URLSearchParams(window.location.search)
+    .get("code")
+    ?.toUpperCase()
+    .replace(/[^0-9A-Z]/g, "")
+    .slice(0, 12);
   if (joinedCode?.length === 12) return joinedCode;
-  const existing = sessionStorage.getItem("move-canvas:room-code");
+  const existing = readBrowserStorage("session", "move-canvas:room-code");
   if (existing) return existing;
   const code = createRoomCode();
-  sessionStorage.setItem("move-canvas:room-code", code);
+  writeBrowserStorage("session", "move-canvas:room-code", code);
   return code;
 };
 
 const readPlayer = (): Player => {
-  const saved = localStorage.getItem("move-canvas:player");
+  const saved = readBrowserStorage("local", "move-canvas:player");
   if (saved) {
-    try { return JSON.parse(saved) as Player; } catch { localStorage.removeItem("move-canvas:player"); }
+    try {
+      const parsed = playerSchema.safeParse(JSON.parse(saved));
+      if (parsed.success) return parsed.data;
+      removeBrowserStorage("local", "move-canvas:player");
+    } catch {
+      removeBrowserStorage("local", "move-canvas:player");
+    }
   }
   const player = createPlayer();
-  localStorage.setItem("move-canvas:player", JSON.stringify(player));
+  writeBrowserStorage("local", "move-canvas:player", JSON.stringify(player));
   return player;
 };
 
-const sendGestureMessage = async (connection: SessionConnection | null, playerId: string | undefined, gesture: Gesture, sentAt = performance.now()) => {
+const sendGestureMessage = async (
+  connection: SessionConnection | null,
+  playerId: string | undefined,
+  gesture: Gesture,
+  sentAt = performance.now(),
+) => {
   if (!playerId) return;
   await connection?.send({ type: "gesture", playerId, gesture, sentAt });
 };
 
-const motionLabel = (state: MotionState) => ({
-  idle: "Motion control is off",
-  requesting: "Starting camera and pose model…",
-  tracking: "Body in frame",
-  "out-of-frame": "Step back into frame",
-  error: "Camera or pose model unavailable",
-})[state];
+const motionLabel = (state: MotionState) =>
+  ({
+    idle: "Motion control is off",
+    requesting: "Starting camera and pose model…",
+    tracking: "Body in frame",
+    "out-of-frame": "Step back into frame",
+    error: "Camera or pose model unavailable",
+  })[state];

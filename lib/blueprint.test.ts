@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createFallbackBlueprint, gameBlueprintSchema } from "./blueprint";
+import {
+  createFallbackBlueprint,
+  gameBlueprintSchema,
+  parseStoredBlueprint,
+  parseStoredBlueprintRecord,
+} from "./blueprint";
 
 describe("GameBlueprint", () => {
   it("creates a safe, schema-valid blueprint from fresh text", () => {
@@ -12,5 +17,15 @@ describe("GameBlueprint", () => {
   it("rejects gestures outside the verified palette", () => {
     const result = createFallbackBlueprint("A volcano sprint");
     expect(() => gameBlueprintSchema.parse({ ...result, gestures: ["backflip"] })).toThrow();
+  });
+
+  it("fails closed on malformed persisted blueprints and provenance records", () => {
+    const blueprint = createFallbackBlueprint("A moonlit ocean game with pearls");
+    expect(parseStoredBlueprint(JSON.stringify(blueprint))?.title).toBe(blueprint.title);
+    expect(parseStoredBlueprint("{bad-json")).toBeNull();
+    expect(
+      parseStoredBlueprint(JSON.stringify({ ...blueprint, gestures: ["backflip"] })),
+    ).toBeNull();
+    expect(parseStoredBlueprintRecord(JSON.stringify({ version: "1.1", blueprint }))).toBeNull();
   });
 });

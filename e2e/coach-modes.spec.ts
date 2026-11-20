@@ -12,16 +12,32 @@ async function installMediaAudit(page: Page) {
     Object.defineProperty(HTMLMediaElement.prototype, "currentTime", {
       configurable: true,
       get: () => audit.currentTime,
-      set: (value: number) => { audit.currentTime = value; },
+      set: (value: number) => {
+        audit.currentTime = value;
+      },
     });
-    HTMLMediaElement.prototype.play = async function play() { audit.playCount += 1; };
-    HTMLMediaElement.prototype.pause = function pause() { audit.pauseCount += 1; };
+    HTMLMediaElement.prototype.play = async function play() {
+      audit.playCount += 1;
+    };
+    HTMLMediaElement.prototype.pause = function pause() {
+      audit.pauseCount += 1;
+    };
   });
 }
 
-const readMediaAudit = (page: Page) => page.evaluate(() => (window as typeof window & { __moveCanvasMediaAudit: MediaAudit }).__moveCanvasMediaAudit);
-const readComparisonPosition = async (page: Page) => Number.parseFloat((await page.getByTestId("dance-comparison-position").textContent())?.match(/[\d.]+/)?.[0] ?? "0");
-const readDisplayElapsed = async (page: Page) => Number.parseFloat((await page.getByTestId("coach-elapsed").textContent())?.match(/[\d.]+/)?.[0] ?? "0");
+const readMediaAudit = (page: Page) =>
+  page.evaluate(
+    () => (window as typeof window & { __moveCanvasMediaAudit: MediaAudit }).__moveCanvasMediaAudit,
+  );
+const readComparisonPosition = async (page: Page) =>
+  Number.parseFloat(
+    (await page.getByTestId("dance-comparison-position").textContent())?.match(/[\d.]+/)?.[0] ??
+      "0",
+  );
+const readDisplayElapsed = async (page: Page) =>
+  Number.parseFloat(
+    (await page.getByTestId("coach-elapsed").textContent())?.match(/[\d.]+/)?.[0] ?? "0",
+  );
 
 test("mode selection exposes three truthful first-class paths", async ({ page }) => {
   await page.goto("/coach");
@@ -29,15 +45,29 @@ test("mode selection exposes three truthful first-class paths", async ({ page })
   await expect(page.getByRole("link", { name: /Motion Game/ })).toBeVisible();
   await expect(page.getByRole("link", { name: /Dance Coach/ })).toBeVisible();
   await expect(page.getByRole("link", { name: /Tennis Coach/ })).toBeVisible();
-  await expect(page.getByText(/do not provide medical, injury-prevention, biomechanics, or professional-coaching analysis/i)).toBeVisible();
+  await expect(
+    page.getByText(
+      /do not provide medical, injury-prevention, biomechanics, or professional-coaching analysis/i,
+    ),
+  ).toBeVisible();
   const axe = await new AxeBuilder({ page }).analyze();
-  expect(axe.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical")).toEqual([]);
+  expect(
+    axe.violations.filter(
+      (violation) => violation.impact === "serious" || violation.impact === "critical",
+    ),
+  ).toEqual([]);
   await page.screenshot({ path: "evidence/package-1.1/mode-selection.png", fullPage: true });
 });
 
-test("dance fixture verifies paired semantic flow without claiming real-device evidence", async ({ browser }) => {
+test("dance fixture verifies paired semantic flow without claiming real-device evidence", async ({
+  browser,
+}) => {
   const displayContext = await browser.newContext({ baseURL, reducedMotion: "reduce" });
-  const phoneContext = await browser.newContext({ baseURL, viewport: { width: 360, height: 780 }, reducedMotion: "reduce" });
+  const phoneContext = await browser.newContext({
+    baseURL,
+    viewport: { width: 360, height: 780 },
+    reducedMotion: "reduce",
+  });
   const display = await displayContext.newPage();
   await installMediaAudit(display);
   await display.goto("/coach/dance");
@@ -46,7 +76,9 @@ test("dance fixture verifies paired semantic flow without claiming real-device e
   await display.getByRole("button", { name: "Load landmark fixture" }).click();
   await expect(display.getByText(/101 confidence-qualified samples/i)).toBeVisible();
 
-  const controllerHref = await display.getByRole("link", { name: "Open phone controller" }).getAttribute("href");
+  const controllerHref = await display
+    .getByRole("link", { name: "Open phone controller" })
+    .getAttribute("href");
   expect(controllerHref).toBeTruthy();
   const phone = await phoneContext.newPage();
   await phone.goto(controllerHref!);
@@ -100,21 +132,37 @@ test("dance fixture verifies paired semantic flow without claiming real-device e
   expect(saved).not.toBeNull();
   expect(JSON.parse(saved!).mode).toBe("dance-coach");
   const phoneAxe = await new AxeBuilder({ page: phone }).analyze();
-  expect(phoneAxe.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical")).toEqual([]);
-  await display.screenshot({ path: "evidence/package-1.1/dance-result-fixture.png", fullPage: true });
-  await phone.screenshot({ path: "evidence/package-1.1/dance-phone-360-fixture.png", fullPage: true });
+  expect(
+    phoneAxe.violations.filter(
+      (violation) => violation.impact === "serious" || violation.impact === "critical",
+    ),
+  ).toEqual([]);
+  await display.screenshot({
+    path: "evidence/package-1.1/dance-result-fixture.png",
+    fullPage: true,
+  });
+  await phone.screenshot({
+    path: "evidence/package-1.1/dance-phone-360-fixture.png",
+    fullPage: true,
+  });
   await Promise.all([displayContext.close(), phoneContext.close()]);
 });
 
 test("paused Dance sessions can end safely from either peer", async ({ browser }) => {
   const displayContext = await browser.newContext({ baseURL, reducedMotion: "reduce" });
-  const phoneContext = await browser.newContext({ baseURL, viewport: { width: 360, height: 780 }, reducedMotion: "reduce" });
+  const phoneContext = await browser.newContext({
+    baseURL,
+    viewport: { width: 360, height: 780 },
+    reducedMotion: "reduce",
+  });
   const display = await displayContext.newPage();
   await installMediaAudit(display);
   await display.goto("/coach/dance");
   await display.getByText("Deterministic verification controls").click();
   await display.getByRole("button", { name: "Load landmark fixture" }).click();
-  const controllerHref = await display.getByRole("link", { name: "Open phone controller" }).getAttribute("href");
+  const controllerHref = await display
+    .getByRole("link", { name: "Open phone controller" })
+    .getAttribute("href");
   const phone = await phoneContext.newPage();
   await phone.goto(controllerHref!);
   await expect(display.getByText("Phone connected")).toBeVisible({ timeout: 10_000 });
@@ -155,22 +203,34 @@ test("paused Dance sessions can end safely from either peer", async ({ browser }
       await phone.getByRole("button", { name: "End safely" }).press("Enter");
     }
     await expect(display.getByRole("heading", { name: "Session complete" })).toBeVisible();
-    await expect.poll(async () => (await readMediaAudit(display)).pauseCount).toBe(pausesBeforeStop + 1);
-    expect((await readMediaAudit(display)).currentTime).toBeGreaterThanOrEqual(Math.max(0, frozenPosition - 0.1));
+    await expect
+      .poll(async () => (await readMediaAudit(display)).pauseCount)
+      .toBe(pausesBeforeStop + 1);
+    expect((await readMediaAudit(display)).currentTime).toBeGreaterThanOrEqual(
+      Math.max(0, frozenPosition - 0.1),
+    );
   }
 
   await Promise.all([displayContext.close(), phoneContext.close()]);
 });
 
-test("Dance display reload restores ready, paused, and running session state", async ({ browser }) => {
+test("Dance display reload restores ready, paused, and running session state", async ({
+  browser,
+}) => {
   const displayContext = await browser.newContext({ baseURL, reducedMotion: "reduce" });
-  const phoneContext = await browser.newContext({ baseURL, viewport: { width: 360, height: 780 }, reducedMotion: "reduce" });
+  const phoneContext = await browser.newContext({
+    baseURL,
+    viewport: { width: 360, height: 780 },
+    reducedMotion: "reduce",
+  });
   const display = await displayContext.newPage();
   await installMediaAudit(display);
   await display.goto("/coach/dance");
   await display.getByText("Deterministic verification controls").click();
   await display.getByRole("button", { name: "Load landmark fixture" }).click();
-  const controllerHref = await display.getByRole("link", { name: "Open phone controller" }).getAttribute("href");
+  const controllerHref = await display
+    .getByRole("link", { name: "Open phone controller" })
+    .getAttribute("href");
   const phone = await phoneContext.newPage();
   await phone.goto(controllerHref!);
   await expect(display.getByText("Phone connected")).toBeVisible({ timeout: 10_000 });
@@ -179,7 +239,9 @@ test("Dance display reload restores ready, paused, and running session state", a
   await phone.getByRole("button", { name: "Use fixture framing" }).click();
 
   await display.reload();
-  await expect(display.getByText(/Reference timeline restored from the paired phone/)).toBeVisible({ timeout: 10_000 });
+  await expect(display.getByText(/Reference timeline restored from the paired phone/)).toBeVisible({
+    timeout: 10_000,
+  });
   await expect(display.getByText(/101 confidence-qualified samples/)).toBeVisible();
   await expect(display.getByRole("button", { name: "Start practice" })).toBeEnabled();
 
@@ -189,7 +251,9 @@ test("Dance display reload restores ready, paused, and running session state", a
   await phone.getByRole("button", { name: "Pause", exact: true }).click();
   const pausedPosition = await readComparisonPosition(phone);
   await display.reload();
-  await expect(display.getByText(/Reference timeline restored from the paired phone/)).toBeVisible({ timeout: 10_000 });
+  await expect(display.getByText(/Reference timeline restored from the paired phone/)).toBeVisible({
+    timeout: 10_000,
+  });
   await expect(display.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
   await expect(display.getByRole("button", { name: "End session" })).toBeVisible();
   expect(await readDisplayElapsed(display)).toBeGreaterThanOrEqual(pausedPosition - 0.1);
@@ -198,7 +262,9 @@ test("Dance display reload restores ready, paused, and running session state", a
   await phone.waitForTimeout(300);
   const runningPosition = await readComparisonPosition(phone);
   await display.reload();
-  await expect(display.getByText(/Reference timeline restored from the paired phone/)).toBeVisible({ timeout: 10_000 });
+  await expect(display.getByText(/Reference timeline restored from the paired phone/)).toBeVisible({
+    timeout: 10_000,
+  });
   await expect(display.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
   await expect(display.getByRole("button", { name: "End session" })).toBeVisible();
   expect(await readDisplayElapsed(display)).toBeGreaterThanOrEqual(runningPosition - 0.1);
@@ -214,11 +280,17 @@ test("Dance display reload restores ready, paused, and running session state", a
 for (const drill of ["Shadow Serve", "Shadow Forehand"] as const) {
   test(`${drill} fixture requires three ordered semantic reps`, async ({ browser }) => {
     const displayContext = await browser.newContext({ baseURL, reducedMotion: "reduce" });
-    const phoneContext = await browser.newContext({ baseURL, viewport: { width: 360, height: 780 }, reducedMotion: "reduce" });
+    const phoneContext = await browser.newContext({
+      baseURL,
+      viewport: { width: 360, height: 780 },
+      reducedMotion: "reduce",
+    });
     const display = await displayContext.newPage();
     await display.goto("/coach/tennis");
     await display.getByLabel(drill).check();
-    const controllerHref = await display.getByRole("link", { name: "Open phone controller" }).getAttribute("href");
+    const controllerHref = await display
+      .getByRole("link", { name: "Open phone controller" })
+      .getAttribute("href");
     const phone = await phoneContext.newPage();
     await phone.goto(controllerHref!);
     await expect(display.getByText("Phone connected")).toBeVisible({ timeout: 10_000 });
@@ -243,23 +315,38 @@ for (const drill of ["Shadow Serve", "Shadow Forehand"] as const) {
     } else {
       await display.getByRole("button", { name: "Start practice" }).click();
     }
-    await expect(phone.getByRole("button", { name: "Pause", exact: true })).toBeEnabled({ timeout: 5_000 });
+    await expect(phone.getByRole("button", { name: "Pause", exact: true })).toBeEnabled({
+      timeout: 5_000,
+    });
 
     const displayAxe = await new AxeBuilder({ page: display }).analyze();
     const phoneAxe = await new AxeBuilder({ page: phone }).analyze();
-    expect(displayAxe.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical")).toEqual([]);
-    expect(phoneAxe.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical")).toEqual([]);
+    expect(
+      displayAxe.violations.filter(
+        (violation) => violation.impact === "serious" || violation.impact === "critical",
+      ),
+    ).toEqual([]);
+    expect(
+      phoneAxe.violations.filter(
+        (violation) => violation.impact === "serious" || violation.impact === "critical",
+      ),
+    ).toEqual([]);
 
-    const phases = drill === "Shadow Serve"
-      ? ["ready", "trophy", "reach proxy", "follow through"]
-      : ["ready", "unit turn", "load", "contact zone proxy", "finish"];
+    const phases =
+      drill === "Shadow Serve"
+        ? ["ready", "trophy", "reach proxy", "follow through"]
+        : ["ready", "unit turn", "load", "contact zone proxy", "finish"];
     for (let rep = 0; rep < 3; rep += 1) {
-      for (const phase of phases) await phone.getByRole("button", { name: phase, exact: true }).click();
+      for (const phase of phases)
+        await phone.getByRole("button", { name: phase, exact: true }).click();
     }
     await expect(display.getByRole("heading", { name: "Session complete" })).toBeVisible();
     await expect(display.getByText(/coarse 2D shadow-movement phases/i).last()).toBeVisible();
     await expect(display.locator(".rep-count")).toContainText("3 / 3");
-    await display.screenshot({ path: `evidence/package-1.1/${drill === "Shadow Serve" ? "serve" : "forehand"}-result-fixture.png`, fullPage: true });
+    await display.screenshot({
+      path: `evidence/package-1.1/${drill === "Shadow Serve" ? "serve" : "forehand"}-result-fixture.png`,
+      fullPage: true,
+    });
     await Promise.all([displayContext.close(), phoneContext.close()]);
   });
 }

@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { createFallbackBlueprint } from "./blueprint";
 import { initialGameState, reduceGame } from "./engine";
-import { applyGesture, challengeAt, CHALLENGE_WINDOW_MS, tickGame, type DisplayState } from "../components/game-display";
+import {
+  applyGesture,
+  challengeAt,
+  CHALLENGE_WINDOW_MS,
+  tickGame,
+  type DisplayState,
+} from "../components/game-display";
 
 const game = createFallbackBlueprint("An ocean treasure hunt with pearls");
 
@@ -28,7 +34,9 @@ describe("complete display game session", () => {
     expect(correct.score).toBe(game.pointsPerCollectible);
     expect(correct.challenge?.index).toBe(1);
     expect(correct.eventsReceived).toBe(2);
-    expect(correct.players.find((player) => player.id === "p2")?.score).toBe(game.pointsPerCollectible);
+    expect(correct.players.find((player) => player.id === "p2")?.score).toBe(
+      game.pointsPerCollectible,
+    );
     expect(correct.players.find((player) => player.id === "p1")?.score).toBe(0);
   });
 

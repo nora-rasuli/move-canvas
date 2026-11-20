@@ -1,53 +1,105 @@
-import type { Gesture } from "./blueprint";
-import type { GamePhase } from "./engine";
+import { z } from "zod";
+import { gameBlueprintSchema, gestureSchema } from "./blueprint";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type {
-  CoachResult,
-  CoachSession,
-  DanceFeedbackEvent,
-  DanceTimeline,
-  TennisPhase,
+import {
+  coachResultSchema,
+  coachSessionSchema,
+  danceFeedbackEventSchema,
+  danceTimelineSchema,
+  tennisPhaseSchema,
 } from "./coach";
-import type { CoachControl } from "./coach-clock";
+import { coachControlSchema } from "./coach-clock";
 
-export type GameResult = {
-  gameTitle: string;
-  score: number;
-  leaderboard: PlayerScore[];
-  completedAt: string;
-  durationSeconds: number;
-  eventsReceived: number;
-};
+export const playerSchema = z
+  .object({
+    id: z.string().min(1).max(80),
+    name: z.string().trim().min(1).max(18),
+    color: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
+  })
+  .strict();
 
-export type Player = {
-  id: string;
-  name: string;
-  color: string;
-};
+export const playerScoreSchema = playerSchema.extend({
+  score: z.number().int().min(0).max(1_000_000),
+});
 
-export type PlayerScore = Player & {
-  score: number;
-};
+export const gameResultSchema = z
+  .object({
+    gameTitle: z.string().trim().min(1).max(48),
+    score: z.number().int().min(0).max(1_000_000),
+    leaderboard: z.array(playerScoreSchema).max(12),
+    completedAt: z.string().min(1).max(80),
+    durationSeconds: z.number().int().min(0).max(90),
+    eventsReceived: z.number().int().min(0).max(100_000),
+  })
+  .strict();
 
-export type SessionMessage =
-  | { type: "controller-ready"; player: Player }
-  | { type: "controller-left"; playerId: string }
-  | { type: "display-ready" }
-  | { type: "gesture"; playerId: string; gesture: Gesture; sentAt: number }
-  | { type: "start" }
-  | { type: "pause" }
-  | { type: "resume" }
-  | { type: "game-state"; phase: GamePhase; score: number; lives: number; remainingSeconds: number; requiredGesture: Gesture | null; players: PlayerScore[] }
-  | { type: "result"; result: GameResult }
-  | { type: "blueprint"; payload: unknown }
-  | { type: "coach-controller-ready"; mode: "dance-coach" | "tennis-coach" }
-  | { type: "coach-display-ready"; mode: "dance-coach" | "tennis-coach" }
-  | { type: "coach-session"; session: CoachSession }
-  | { type: "dance-reference"; timeline: DanceTimeline }
-  | ({ type: "coach-control" } & CoachControl)
-  | { type: "dance-feedback"; event: DanceFeedbackEvent; sentAt: number }
-  | { type: "tennis-progress"; phase: TennisPhase | null; repCount: number; confidence: number; sentAt: number }
-  | { type: "coach-result"; result: CoachResult };
+const gamePhaseSchema = z.enum(["ready", "playing", "paused", "finished"]);
+const coachModeSchema = z.enum(["dance-coach", "tennis-coach"]);
+const sentAtSchema = z.number().finite().nonnegative();
+
+export const sessionMessageSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("controller-ready"), player: playerSchema }).strict(),
+  z.object({ type: z.literal("controller-left"), playerId: z.string().min(1).max(80) }).strict(),
+  z.object({ type: z.literal("display-ready") }).strict(),
+  z
+    .object({
+      type: z.literal("gesture"),
+      playerId: z.string().min(1).max(80),
+      gesture: gestureSchema,
+      sentAt: sentAtSchema,
+    })
+    .strict(),
+  z.object({ type: z.literal("start") }).strict(),
+  z.object({ type: z.literal("pause") }).strict(),
+  z.object({ type: z.literal("resume") }).strict(),
+  z
+    .object({
+      type: z.literal("game-state"),
+      phase: gamePhaseSchema,
+      score: z.number().int().min(0).max(1_000_000),
+      lives: z.number().int().min(0).max(3),
+      remainingSeconds: z.number().int().min(0).max(90),
+      requiredGesture: gestureSchema.nullable(),
+      players: z.array(playerScoreSchema).max(12),
+    })
+    .strict(),
+  z.object({ type: z.literal("result"), result: gameResultSchema }).strict(),
+  z.object({ type: z.literal("blueprint"), payload: gameBlueprintSchema }).strict(),
+  z.object({ type: z.literal("coach-controller-ready"), mode: coachModeSchema }).strict(),
+  z.object({ type: z.literal("coach-display-ready"), mode: coachModeSchema }).strict(),
+  z.object({ type: z.literal("coach-session"), session: coachSessionSchema }).strict(),
+  z.object({ type: z.literal("dance-reference"), timeline: danceTimelineSchema }).strict(),
+  z
+    .object({ type: z.literal("coach-control") })
+    .extend(coachControlSchema.shape)
+    .strict(),
+  z
+    .object({
+      type: z.literal("dance-feedback"),
+      event: danceFeedbackEventSchema,
+      sentAt: sentAtSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("tennis-progress"),
+      phase: tennisPhaseSchema.nullable(),
+      repCount: z.number().int().min(0).max(100),
+      confidence: z.number().min(0).max(1),
+      sentAt: sentAtSchema,
+    })
+    .strict(),
+  z.object({ type: z.literal("coach-result"), result: coachResultSchema }).strict(),
+]);
+
+export type GameResult = z.infer<typeof gameResultSchema>;
+export type Player = z.infer<typeof playerSchema>;
+export type PlayerScore = z.infer<typeof playerScoreSchema>;
+export type SessionMessage = z.infer<typeof sessionMessageSchema>;
+
+export function parseSessionMessage(value: unknown): SessionMessage | null {
+  return sessionMessageSchema.safeParse(value).data ?? null;
+}
 
 export type SessionConnection = {
   mode: "supabase" | "same-device";
@@ -57,7 +109,10 @@ export type SessionConnection = {
 
 export function createRoomCode() {
   const bytes = crypto.getRandomValues(new Uint8Array(9));
-  return Array.from(bytes, (byte) => byte.toString(36).padStart(2, "0")).join("").slice(0, 12).toUpperCase();
+  return Array.from(bytes, (byte) => byte.toString(36).padStart(2, "0"))
+    .join("")
+    .slice(0, 12)
+    .toUpperCase();
 }
 
 export const roomTopic = (code: string) => `move-canvas:${code}`;
@@ -110,7 +165,10 @@ export async function connectSession(
 
       const channel = client
         .channel(roomTopic(code), { config: { private: true } })
-        .on("broadcast", { event: "message" }, ({ payload }) => onMessage(payload as SessionMessage));
+        .on("broadcast", { event: "message" }, ({ payload }) => {
+          const message = parseSessionMessage(payload);
+          if (message) onMessage(message);
+        });
 
       await new Promise<void>((resolve, reject) => {
         channel.subscribe((status, error) => {
@@ -128,7 +186,11 @@ export async function connectSession(
         mode: "supabase",
         async send(message) {
           if (closed) return;
-          const status = await channel.send({ type: "broadcast", event: "message", payload: message });
+          const status = await channel.send({
+            type: "broadcast",
+            event: "message",
+            payload: message,
+          });
           if (status !== "ok") throw new Error(`Realtime message failed: ${status}`);
         },
         async close() {
@@ -143,11 +205,18 @@ export async function connectSession(
   }
 
   const channel = new BroadcastChannel(roomTopic(code));
-  channel.onmessage = (event: MessageEvent<SessionMessage>) => onMessage(event.data);
+  channel.onmessage = (event: MessageEvent<unknown>) => {
+    const message = parseSessionMessage(event.data);
+    if (message) onMessage(message);
+  };
   onStatus(true);
   return {
     mode: "same-device",
-    async send(message) { channel.postMessage(message); },
-    async close() { channel.close(); },
+    async send(message) {
+      channel.postMessage(message);
+    },
+    async close() {
+      channel.close();
+    },
   };
 }

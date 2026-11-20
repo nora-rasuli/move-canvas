@@ -1,7 +1,8 @@
 import type { Landmark, PoseFrame } from "./pose";
 
 const WASM_ROOT = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.3/wasm";
-const MODEL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task";
+const MODEL =
+  "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task";
 
 export type PoseSession = { stop: () => void };
 
@@ -26,7 +27,10 @@ export async function startPoseSession(
 
   const detect = () => {
     if (!active) return;
-    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.currentTime !== lastVideoTime) {
+    if (
+      video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+      video.currentTime !== lastVideoTime
+    ) {
       lastVideoTime = video.currentTime;
       const result = landmarker.detectForVideo(video, performance.now());
       const landmarks = result.landmarks[0] as Landmark[] | undefined;

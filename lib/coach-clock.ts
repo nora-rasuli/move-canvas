@@ -1,4 +1,12 @@
-export type CoachControlAction = "countdown" | "cancel-countdown" | "start" | "pause" | "resume" | "stop";
+import { z } from "zod";
+
+export type CoachControlAction =
+  | "countdown"
+  | "cancel-countdown"
+  | "start"
+  | "pause"
+  | "resume"
+  | "stop";
 export type CoachControlOrigin = "display" | "phone" | "tracking-loss";
 
 export type CoachControl = {
@@ -9,6 +17,21 @@ export type CoachControl = {
   elapsedMs: number;
   countdownMs?: number;
 };
+
+export const coachControlSchema = z
+  .object({
+    id: z.string().uuid(),
+    action: z.enum(["countdown", "cancel-countdown", "start", "pause", "resume", "stop"]),
+    origin: z.enum(["display", "phone", "tracking-loss"]),
+    sentAt: z.number().finite().nonnegative(),
+    elapsedMs: z
+      .number()
+      .finite()
+      .min(0)
+      .max(24 * 60 * 60 * 1_000),
+    countdownMs: z.number().finite().min(0).max(10_000).optional(),
+  })
+  .strict();
 
 export type CoachClock = {
   phase: "idle" | "countdown" | "running" | "paused" | "finished";
@@ -27,18 +50,33 @@ export const createCoachClock = (): CoachClock => ({
 export const readCoachNow = () => performance.now();
 
 export function coachElapsed(clock: CoachClock, now: number) {
-  return Math.max(0, Math.round(clock.elapsedMs + (clock.phase === "running" ? now - clock.anchoredAt : 0)));
+  return Math.max(
+    0,
+    Math.round(clock.elapsedMs + (clock.phase === "running" ? now - clock.anchoredAt : 0)),
+  );
 }
 
-export function applyCoachControl(clock: CoachClock, control: CoachControl, receivedAt: number): CoachClock {
-  if (clock.phase === "finished" && control.action !== "start" && control.action !== "countdown") return clock;
-  if (control.action === "pause" && (clock.phase === "paused" || clock.phase === "finished")) return clock;
-  if ((control.action === "start" || control.action === "resume") && clock.phase === "running") return clock;
+export function applyCoachControl(
+  clock: CoachClock,
+  control: CoachControl,
+  receivedAt: number,
+): CoachClock {
+  if (clock.phase === "finished" && control.action !== "start" && control.action !== "countdown")
+    return clock;
+  if (control.action === "pause" && (clock.phase === "paused" || clock.phase === "finished"))
+    return clock;
+  if ((control.action === "start" || control.action === "resume") && clock.phase === "running")
+    return clock;
   if (control.action === "countdown" && clock.phase === "countdown") return clock;
   if (control.action === "cancel-countdown" && clock.phase === "idle") return clock;
   const elapsedMs = Math.max(0, Math.round(control.elapsedMs));
   if (control.action === "countdown") {
-    return { phase: "countdown", elapsedMs: 0, anchoredAt: receivedAt, countdownEndsAt: receivedAt + (control.countdownMs ?? 3_000) };
+    return {
+      phase: "countdown",
+      elapsedMs: 0,
+      anchoredAt: receivedAt,
+      countdownEndsAt: receivedAt + (control.countdownMs ?? 3_000),
+    };
   }
   if (control.action === "cancel-countdown") {
     return { phase: "idle", elapsedMs: 0, anchoredAt: receivedAt, countdownEndsAt: null };
@@ -69,16 +107,29 @@ export function createCoachControl(
     action,
     origin,
     sentAt: now,
-    elapsedMs: action === "start" || action === "countdown" || action === "cancel-countdown" ? 0 : coachElapsed(clock, now),
+    elapsedMs:
+      action === "start" || action === "countdown" || action === "cancel-countdown"
+        ? 0
+        : coachElapsed(clock, now),
     ...(countdownMs ? { countdownMs } : {}),
   };
 }
 
-export function createClockSyncControl(clock: CoachClock, now: number, origin: CoachControlOrigin = "display"): CoachControl | null {
+export function createClockSyncControl(
+  clock: CoachClock,
+  now: number,
+  origin: CoachControlOrigin = "display",
+): CoachControl | null {
   if (clock.phase === "running") return createCoachControl("resume", origin, clock, now);
   if (clock.phase === "paused") return createCoachControl("pause", origin, clock, now);
   if (clock.phase === "countdown") {
-    return createCoachControl("countdown", origin, clock, now, Math.max(0, (clock.countdownEndsAt ?? now) - now));
+    return createCoachControl(
+      "countdown",
+      origin,
+      clock,
+      now,
+      Math.max(0, (clock.countdownEndsAt ?? now) - now),
+    );
   }
   return null;
 }

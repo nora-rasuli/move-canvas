@@ -1,25 +1,44 @@
 import { describe, expect, it } from "vitest";
 import type { Landmark, PoseFrame } from "./pose";
-import { buildDanceTimeline, compareDancePose, DANCE_MAX_PAYLOAD_BYTES, normalizeDancePose, summarizeDanceEvents } from "./dance";
+import {
+  buildDanceTimeline,
+  compareDancePose,
+  DANCE_MAX_PAYLOAD_BYTES,
+  normalizeDancePose,
+  summarizeDanceEvents,
+} from "./dance";
 import { serializedBytes } from "./coach";
 import { createCalibrationRecord, type CalibrationSample } from "./calibration";
 
 const pose = (shift = 0, armLift = 0, visibility = 0.95): Landmark[] => {
   const landmarks = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, visibility }));
   const values: Record<number, [number, number]> = {
-    11: [0.42, 0.3], 12: [0.58, 0.3], 13: [0.36, 0.42], 14: [0.64, 0.42],
-    15: [0.3 + shift, 0.52 - armLift], 16: [0.7 + shift, 0.52 - armLift],
-    23: [0.45, 0.55], 24: [0.55, 0.55], 25: [0.44, 0.74], 26: [0.56, 0.74],
-    27: [0.43, 0.94], 28: [0.57, 0.94],
+    11: [0.42, 0.3],
+    12: [0.58, 0.3],
+    13: [0.36, 0.42],
+    14: [0.64, 0.42],
+    15: [0.3 + shift, 0.52 - armLift],
+    16: [0.7 + shift, 0.52 - armLift],
+    23: [0.45, 0.55],
+    24: [0.55, 0.55],
+    25: [0.44, 0.74],
+    26: [0.56, 0.74],
+    27: [0.43, 0.94],
+    28: [0.57, 0.94],
   };
-  for (const [index, [x, y]] of Object.entries(values)) landmarks[Number(index)] = { x, y, visibility };
+  for (const [index, [x, y]] of Object.entries(values))
+    landmarks[Number(index)] = { x, y, visibility };
   return landmarks;
 };
 
-const frames = (durationMs = 10_000): PoseFrame[] => Array.from({ length: durationMs / 100 + 1 }, (_, index) => ({
-  capturedAt: index * 100,
-  landmarks: pose(index < 25 ? 0 : index < 60 ? 0.08 : -0.06, index < 25 ? 0 : index < 60 ? 0.12 : 0.22),
-}));
+const frames = (durationMs = 10_000): PoseFrame[] =>
+  Array.from({ length: durationMs / 100 + 1 }, (_, index) => ({
+    capturedAt: index * 100,
+    landmarks: pose(
+      index < 25 ? 0 : index < 60 ? 0.08 : -0.06,
+      index < 25 ? 0 : index < 60 ? 0.12 : 0.22,
+    ),
+  }));
 
 describe("dance reference normalization and comparison", () => {
   it("normalizes scale and rejects low-confidence bodies", () => {
@@ -59,7 +78,13 @@ describe("dance reference normalization and comparison", () => {
 
   it("uses the session calibration to bound pose mismatch tolerance", () => {
     const timeline = buildDanceTimeline(frames(), 10_000);
-    const sample = (poseSpread: number): CalibrationSample => ({ armReach: 1, kneeLoad: 1.5, shoulderTurn: 0.15, poseSpread, confidence: 0.95 });
+    const sample = (poseSpread: number): CalibrationSample => ({
+      armReach: 1,
+      kneeLoad: 1.5,
+      shoulderTurn: 0.15,
+      poseSpread,
+      confidence: 0.95,
+    });
     const tight = createCalibrationRecord("tight-session", sample(1), sample(1));
     const broad = createCalibrationRecord("broad-session", sample(1), sample(3));
     const candidate = pose(0.9, -0.3);

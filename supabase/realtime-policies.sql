@@ -1,6 +1,10 @@
 -- Move Canvas uses short-lived, high-entropy room topics and anonymous Auth
 -- sessions. Possession of the 12-character room code grants access to that
 -- ephemeral room; camera frames never enter Realtime.
+--
+-- Deployment prerequisite: disable Realtime "Allow public access" in the
+-- owner-controlled Supabase project so private-channel RLS is enforced. These
+-- possession-code policies intentionally do not provide user-membership ACLs.
 
 drop policy if exists "move_canvas_rooms_can_receive_broadcasts" on realtime.messages;
 drop policy if exists "move_canvas_rooms_can_send_broadcasts" on realtime.messages;

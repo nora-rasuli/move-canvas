@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { classifyTennisPhase, PHASES, summarizeTennisReps, TennisRepTracker, type TennisObservation, type TennisRep } from "./tennis";
+import {
+  classifyTennisPhase,
+  PHASES,
+  summarizeTennisReps,
+  TennisRepTracker,
+  type TennisObservation,
+  type TennisRep,
+} from "./tennis";
 
 const observation = (values: Partial<TennisObservation> = {}): TennisObservation => ({
   confidence: 0.9,
@@ -28,8 +35,12 @@ const forehand = [
 
 describe("deterministic shadow tennis analysis", () => {
   it("classifies every supported ordered phase", () => {
-    expect(serve.map((entry) => classifyTennisPhase(entry, "shadow-serve"))).toEqual(PHASES["shadow-serve"]);
-    expect(forehand.map((entry) => classifyTennisPhase(entry, "shadow-forehand"))).toEqual(PHASES["shadow-forehand"]);
+    expect(serve.map((entry) => classifyTennisPhase(entry, "shadow-serve"))).toEqual(
+      PHASES["shadow-serve"],
+    );
+    expect(forehand.map((entry) => classifyTennisPhase(entry, "shadow-forehand"))).toEqual(
+      PHASES["shadow-forehand"],
+    );
   });
 
   it("rejects low-confidence and out-of-order traces", () => {
@@ -43,12 +54,18 @@ describe("deterministic shadow tennis analysis", () => {
   it("qualifies a rep only after its full ordered sequence", () => {
     const tracker = new TennisRepTracker("shadow-forehand");
     let rep: TennisRep | null = null;
-    for (const entry of forehand) rep = tracker.ingest(classifyTennisPhase(entry, "shadow-forehand"), entry) ?? rep;
+    for (const entry of forehand)
+      rep = tracker.ingest(classifyTennisPhase(entry, "shadow-forehand"), entry) ?? rep;
     expect(rep?.phases).toEqual(PHASES["shadow-forehand"]);
   });
 
   it("emits at most two issues repeated in two of three reps", () => {
-    const reps = [0, 1, 2].map(() => ({ drill: "shadow-serve" as const, phases: PHASES["shadow-serve"], confidence: 0.85, issues: ["serve-trophy-height", "serve-reach-range"] }));
+    const reps = [0, 1, 2].map(() => ({
+      drill: "shadow-serve" as const,
+      phases: PHASES["shadow-serve"],
+      confidence: 0.85,
+      issues: ["serve-trophy-height", "serve-reach-range"],
+    }));
     const result = summarizeTennisReps(reps);
     expect(result.cues).toHaveLength(2);
     expect(result.completedUnits).toBe(3);

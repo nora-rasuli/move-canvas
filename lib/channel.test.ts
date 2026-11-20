@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createPlayer, createRoomCode, roomTopic } from "./channel";
+import { createPlayer, createRoomCode, parseSessionMessage, roomTopic } from "./channel";
+import { createFallbackBlueprint } from "./blueprint";
 
 describe("room identity", () => {
   it("creates a 12-character uppercase base36 possession code", () => {
@@ -20,5 +21,64 @@ describe("room identity", () => {
       color: "#56D6FF",
     });
     vi.unstubAllGlobals();
+  });
+});
+
+describe("session message boundary", () => {
+  it("accepts a schema-valid blueprint message", () => {
+    const message = parseSessionMessage({
+      type: "blueprint",
+      payload: createFallbackBlueprint("A moonlit ocean game with pearls"),
+    });
+    expect(message?.type).toBe("blueprint");
+  });
+
+  it("accepts the valid room and coaching handshake messages", () => {
+    const player = {
+      id: "host-player",
+      name: "Nora",
+      color: "#C8FF54",
+    };
+    expect(parseSessionMessage({ type: "controller-ready", player })).toEqual({
+      type: "controller-ready",
+      player,
+    });
+    expect(parseSessionMessage({ type: "coach-controller-ready", mode: "dance-coach" })).toEqual({
+      type: "coach-controller-ready",
+      mode: "dance-coach",
+    });
+    expect(
+      parseSessionMessage({
+        type: "coach-session",
+        session: {
+          id: "dance-coach-ABC123DEF456",
+          roomCode: "ABC123DEF456",
+          mode: "dance-coach",
+          createdAt: "2026-11-20T00:00:00.000Z",
+          status: "ready",
+          clipLabel: "",
+        },
+      }),
+    ).not.toBeNull();
+  });
+
+  it("rejects malformed or oversized relay payloads", () => {
+    expect(parseSessionMessage({ type: "blueprint", payload: { title: "unsafe" } })).toBeNull();
+    expect(
+      parseSessionMessage({
+        type: "controller-ready",
+        player: { id: "visitor", name: "x".repeat(80), color: "red" },
+      }),
+    ).toBeNull();
+    expect(
+      parseSessionMessage({
+        type: "coach-control",
+        id: "not-a-uuid",
+        action: "start",
+        origin: "phone",
+        sentAt: 0,
+        elapsedMs: 0,
+      }),
+    ).toBeNull();
   });
 });
