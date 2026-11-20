@@ -8,6 +8,8 @@
 | 2026-11-19 | Preflight | PASS with owned external actions | 01 Package | `release-preflight.md` |
 | 2026-11-19 | 01 Package | Frozen package 1.0 ready | Independent package verification | Brief/package/handoff |
 | 2026-11-19 | 01 Verification | PASS | 02 Build | `stage-01-verification.md` |
+| 2026-11-19 | Factory rooms | SYNCHRONIZED | Continue Stage 02 | Dedicated sidebar section and rooms 00–05 registered in `factory/room-registry.md` |
+| 2026-11-19 | 02 Build | IN PROGRESS | Verify private multiplayer relay | Named players, TV join QR, per-player scores, team score, and leaderboard implemented; Supabase private-channel policies applied |
 
 ## Active state
 

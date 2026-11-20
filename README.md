@@ -12,16 +12,18 @@ current Stage 02 slice includes:
 - an editable/reviewable blueprint handoff and local persistence;
 - live camera permission handling and on-device MediaPipe pose landmarks;
 - per-player calibration snapshots for four allow-listed gestures;
-- room-code/QR display pairing with a same-device verification transport and an
-  optional Supabase Realtime cross-device transport;
+- private Supabase Realtime rooms with anonymous authentication, scoped RLS,
+  high-entropy room codes, and a same-device fallback for local development;
+- multiplayer phone controllers with editable player names, TV join QR,
+  per-player and team scores, and a live leaderboard;
 - semantic controller events only—raw video is neither stored nor transmitted;
 - a complete timed collect-and-dodge round with score, lives, pause/resume,
   early completion, saved result, and replay;
-- deterministic engine/session tests plus a two-tab Playwright and automated
-  accessibility gate.
+- deterministic engine/session tests plus an isolated three-browser Playwright
+  flow (two phone controllers and one display) and automated accessibility gate.
 
-Private production signaling, real-phone verification, and deployment are still
-active factory work. This README does not claim they are complete.
+Real-phone camera verification and deployment are still active factory work.
+This README does not claim they are complete.
 
 ## Run locally
 
@@ -30,9 +32,9 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. The app remains useful without credentials, but
-labels the blueprint as offline and limits pairing to browser contexts on the
-same device.
+Open `http://localhost:3000`. Without Supabase credentials, pairing is limited
+to browser contexts on the same device. With the two public Supabase variables,
+phones and displays join the same private internet-backed room.
 
 Copy `.env.example` to `.env.local` to configure AI Gateway and Supabase. Use a
 Supabase publishable key only; never expose a secret or service-role key.

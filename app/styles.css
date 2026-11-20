@@ -13,7 +13,7 @@
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-body), sans-serif; }
-button, textarea { font: inherit; }
+button, input, textarea { font: inherit; }
 a { color: inherit; }
 .skip-link { position: fixed; left: 1rem; top: -5rem; z-index: 20; background: var(--ink); color: white; padding: .8rem 1rem; }
 .skip-link:focus { top: 1rem; }
@@ -115,6 +115,10 @@ footer p { max-width: 520px; text-align: right; font-size: .8rem; }
 .room-code span { color: rgba(255,255,255,.5); font-size: .7rem; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
 .room-code strong { margin-top: .3rem; font-family: var(--font-display); font-size: clamp(2rem, 5vw, 4.2rem); letter-spacing: .08em; color: var(--lime); }
 .transport-note { margin-top: 1.2rem; color: rgba(255,255,255,.45); font-size: .72rem; }
+.player-name { display: grid; gap: .45rem; max-width: 310px; margin-top: 1.5rem; color: rgba(255,255,255,.55); font-size: .72rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.player-name input { min-height: 48px; border: 1px solid rgba(255,255,255,.22); border-radius: .75rem; padding: .7rem .85rem; background: rgba(255,255,255,.07); color: white; font-size: 1rem; letter-spacing: 0; text-transform: none; }
+.player-name-light { margin-bottom: 1.5rem; color: rgba(23,21,36,.62); }
+.player-name-light input { border-color: var(--line); background: white; color: var(--ink); }
 .qr-card { position: relative; display: grid; place-items: center; min-height: 430px; padding: 3rem; background: var(--paper); color: var(--ink); border-radius: 1.5rem; box-shadow: 16px 16px 0 var(--violet); }
 .qr-card p { margin: 1.6rem 0 0; font-weight: 800; }
 .connection-light { display: inline-block; width: 12px; height: 12px; margin-left: .5rem; border-radius: 50%; background: var(--coral); box-shadow: 0 0 0 6px rgba(255,107,98,.16); }
@@ -136,6 +140,17 @@ footer p { max-width: 520px; text-align: right; font-size: .8rem; }
 .game-stats strong { margin-left: .35rem; color: white; font-size: 1rem; letter-spacing: 0; }
 .game-intro > p:not(.eyebrow), .game-result > p, .game-arena > p:last-of-type { font-size: clamp(1rem, 1.8vw, 1.4rem); color: rgba(255,255,255,.66); }
 .display-wait { display: inline-block; margin-top: 2rem; padding: .8rem 1.1rem; border: 1px solid rgba(255,255,255,.2); border-radius: 100px; color: rgba(255,255,255,.76); font-weight: 800; }
+.display-pairing { display: grid; justify-items: center; gap: 1.2rem; }
+.display-pairing h1 { font-size: clamp(4rem, 10vw, 9rem); }
+.display-pairing svg { padding: .8rem; border-radius: 1rem; background: var(--paper); }
+.display-pairing > p:last-child { color: rgba(255,255,255,.68); }
+.display-players, .player-strip { display: flex; flex-wrap: wrap; justify-content: center; gap: .6rem; margin-top: 1.5rem; }
+.display-players span, .player-strip span { border: 1px solid color-mix(in srgb, var(--player-color) 75%, transparent); border-radius: 100px; padding: .55rem .8rem; background: color-mix(in srgb, var(--player-color) 14%, transparent); color: white; font-size: .78rem; font-weight: 800; }
+.player-strip { justify-content: flex-start; margin: 0 0 1.5rem; }
+.player-strip span.current-player { background: var(--player-color); color: var(--ink); }
+.player-strip strong { margin-left: .35rem; }
+.leaderboard { width: min(520px, 90vw); margin: 1.5rem auto 0; border-top: 1px solid rgba(255,255,255,.18); }
+.leaderboard div { display: flex; justify-content: space-between; padding: .75rem 0; border-bottom: 1px solid rgba(255,255,255,.18); font-weight: 800; }
 .game-arena { display: grid; justify-items: center; }
 .challenge-kind { margin: 0 0 1rem; color: var(--display-accent, var(--lime)); font-size: .75rem; font-weight: 900; letter-spacing: .18em; }
 .challenge-object { display: grid; place-items: center; width: clamp(130px, 18vw, 230px); aspect-ratio: 1; margin-bottom: 1rem; border: 2px solid rgba(255,255,255,.42); border-radius: 50%; background: var(--display-accent, var(--lime)); color: var(--display-bg, var(--ink)); font-size: clamp(4rem, 9vw, 8rem); box-shadow: 0 0 0 24px color-mix(in srgb, var(--display-accent, var(--lime)) 12%, transparent); }

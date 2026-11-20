@@ -1,8 +1,8 @@
 # Move Canvas Realtime Relay — Free-Tier Decision
 
 **Checked:** 2026-11-19  
-**Decision state:** Free option identified; exact owner account must be selected
-before production configuration.
+**Decision state:** Supabase Free selected and configured in Nora Rasuli's owned
+organization; no payment method or paid plan required.
 
 ## Why a relay exists
 
@@ -28,16 +28,11 @@ state, so it is not being misused as a signaling database.
 
 ## Recommendation
 
-Use **Supabase Free** only if the project can be created inside an organization
-Nora confirms she owns. It matches the existing adapter and its limit is enough
-for a portfolio launch (roughly 100 simultaneous two-device rooms at the
-connection ceiling). Configure anonymous sign-in, private channels, room-scoped
-authorization, expiry, rate limiting, and a publishable browser key only.
-
-If the connected Supabase organization is not Nora's, use **Firebase Spark**.
-It requires no payment method and hard-stops instead of producing surprise
-charges. The transport remains behind `connectSession`, so the game and camera
-code do not change.
+Use **Supabase Free**. The `Move Canvas` project is in Nora Rasuli's owned
+organization. Anonymous sign-in, private channels, topic-scoped authorization,
+a bounded anonymous-auth rate limit, and a publishable browser key are now
+configured. Firebase Spark remains the no-card fallback if the relay provider
+must change later.
 
 ## Exit plan
 
