@@ -36,14 +36,14 @@
 | 2026-11-20 | 06 Package 1.3 automated live review | PASS for public browser/API scope | Physical TV/phone review | Four Dance/movement and four Tennis choices rendered; controller consent/hands-free controls rendered; YouTube returned 8; zero recent production errors |
 | 2026-11-20 | 05 Package 1.3 portfolio presentation | PASS — case study synchronized and public | Physical TV/phone review | <https://nora-rasuli.github.io/work/move-canvas/> at portfolio commit `9b57459`; portfolio CI and Pages PASS |
 | 2026-11-20 | User Testing Lab intake | READY — simulated track only | Run MC-P01–MC-P08, then physical Nora device session | `user-testing/persona-matrix-1.3.md`, `user-testing/user-testing-plan-1.3.md`; no real-participant evidence yet |
+| 2026-11-20 | User Testing Lab simulated run | PASS — simulated track only after two P1 and one P2 correction loops | Physical MC-R01 phone/TV session | Eight session artifacts and `user-testing/user-testing-report-1.3.md`; production `ee81558` / `dpl_GULYNHsGE3KfWyVaj5AxTMzGM2Ds`; 48 unit and 16 browser tests; zero real participants |
 
 ## Active state
 
-Package 1.3 is the public production release. It has passed its local gate,
-remote CI, Stage 03 validation, Stage 04 privacy/product audit, staged
-Production procedure, promotion, and automated Stage 06 public checks. The
-next route is Nora's physical TV/phone review: hands-free calibration, audible
-cues, live player view, stop-sharing behavior, and restrictive-network/TURN
-need. The public portfolio presentation is synchronized and verified. Stage 07
-remains closed until a real post-launch observation window exists.
+Package 1.3 plus User Testing corrections is public at commit `ee81558`. Eight
+simulated configurations passed after two P1 and one P2 correction loops. This
+is not real-user evidence. The next route is Nora's physical TV/phone review:
+hands-free seated/standing calibration, visible/audible cues, live player view,
+stop-sharing behavior, and restrictive-network/TURN need. Stage 07 remains
+closed until real post-launch observation exists.
 
