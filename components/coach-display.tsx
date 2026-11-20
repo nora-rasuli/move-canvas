@@ -26,6 +26,7 @@ import {
   type TennisPhase,
 } from "@/lib/coach";
 import { createVerificationDanceTimeline } from "@/lib/coach-fixtures";
+import { scoreExplanation } from "@/lib/performance-score";
 import {
   applyCoachControl,
   coachElapsed,
@@ -900,6 +901,49 @@ export function CoachDisplay({
         </div>
         {result ? (
           <div className="coach-result" aria-live="polite">
+            <section className="score-card" aria-labelledby="session-score-title">
+              <div>
+                <p className="eyebrow">SESSION SCORE</p>
+                <h3 id="session-score-title">
+                  <strong>{result.score.total}</strong>
+                  <span>/100</span>
+                </h3>
+                {result.personalBest ? (
+                  <p>
+                    {result.personalBest.improved ? "New personal best" : "Personal best"}:{" "}
+                    <strong>{result.personalBest.best}</strong> · {result.personalBest.scope}
+                  </p>
+                ) : (
+                  <p>Personal best is available when local browser storage is enabled.</p>
+                )}
+              </div>
+              <dl>
+                <div>
+                  <dt>{mode === "dance-coach" ? "Movement match" : "Movement phases"}</dt>
+                  <dd>{result.score.components.movementMatch}</dd>
+                </div>
+                <div>
+                  <dt>{mode === "dance-coach" ? "Timing" : "Phase order"}</dt>
+                  <dd>{result.score.components.timingOrSequence}</dd>
+                </div>
+                <div>
+                  <dt>{mode === "dance-coach" ? "Clear comparisons" : "Three-rep completion"}</dt>
+                  <dd>{result.score.components.completion}</dd>
+                </div>
+                <div>
+                  <dt>Tracking confidence</dt>
+                  <dd>{result.score.components.trackingConfidence}</dd>
+                </div>
+              </dl>
+              <details>
+                <summary>How this score works</summary>
+                <p>{scoreExplanation(mode)}</p>
+                <p>
+                  This is a deterministic session score from visible 2D signals—not an expert,
+                  medical, or global ranking.
+                </p>
+              </details>
+            </section>
             <p>
               Confidence {Math.round(result.confidence * 100)}% · {result.completedUnits} qualified{" "}
               {mode === "dance-coach" ? "comparisons" : "reps"}

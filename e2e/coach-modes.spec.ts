@@ -157,11 +157,17 @@ test("dance fixture verifies paired semantic flow without claiming real-device e
   await phone.getByRole("button", { name: "End safely" }).click();
   await expect.poll(async () => (await readMediaAudit(display)).pauseCount).toBe(4);
   await expect(display.getByRole("heading", { name: "Session complete" })).toBeVisible();
+  await expect(display.getByRole("heading", { name: /\/100/ })).toBeVisible();
+  await expect(display.getByText(/New personal best/)).toBeVisible();
   await expect(display.getByText(/estimated 2D pose and timing/i).last()).toBeVisible();
 
   const saved = await phone.evaluate(() => localStorage.getItem("move-canvas:last-coach-summary"));
   expect(saved).not.toBeNull();
-  expect(JSON.parse(saved!).mode).toBe("dance-coach");
+  expect(JSON.parse(saved!)).toMatchObject({
+    mode: "dance-coach",
+    score: { version: "session-score-1.0" },
+    personalBest: { improved: true },
+  });
   const phoneAxe = await new AxeBuilder({ page: phone }).analyze();
   expect(
     phoneAxe.violations.filter(
@@ -373,6 +379,7 @@ for (const drill of ["Serve", "Forehand"] as const) {
         await phone.getByRole("button", { name: phase, exact: true }).click();
     }
     await expect(display.getByRole("heading", { name: "Session complete" })).toBeVisible();
+    await expect(display.getByRole("heading", { name: /\/100/ })).toBeVisible();
     await expect(display.getByText(/coarse 2D shadow-movement phases/i).last()).toBeVisible();
     await expect(display.locator(".rep-count")).toContainText("3 / 3");
     await display.screenshot({

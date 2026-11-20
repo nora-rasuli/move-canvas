@@ -73,6 +73,16 @@ describe("dance reference normalization and comparison", () => {
       { timing: "form-mismatch", region: "arms", offsetMs: 0, confidence: 0.85, cue: "arms" },
     ]);
     expect(result.cues).toHaveLength(2);
+    expect(result.score).toEqual({
+      version: "session-score-1.0",
+      total: 79,
+      components: {
+        movementMatch: 75,
+        timingOrSequence: 60,
+        completion: 100,
+        trackingConfidence: 86,
+      },
+    });
     expect(result.limitation).toContain("estimated 2D pose");
   });
 

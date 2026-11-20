@@ -6,6 +6,13 @@ Move Canvas is a browser-based motion experience with three bounded modes:
 - **Dance Coach** compares estimated 2D pose and timing with bundled licensed human-motion clips or a user-selected 10–90 second local reference clip.
 - **Tennis Coach** combines reference-relative 2D comparison with coarse phase recognition for a ball-free, racket-free shadow serve or shadow forehand.
 
+Dance and Tennis sessions end with a transparent 0–100 practice score and a
+mode-specific personal best stored only in that browser. The score combines
+movement match (35%), timing or phase sequence (25%), completed comparisons or
+repetitions (25%), and tracking confidence (15%). It is a deterministic summary
+of one 2D camera session—not a global ranking, expert grade, health assessment,
+or comparison with other people.
+
 Raw user landmarks, reference-video bytes, and audio stay in the browser where they originate. A coaching player may explicitly opt in to an encrypted peer-to-peer live camera view on the paired display; the stream is not uploaded or stored. Coaching output is deterministic practice feedback, not medical, injury-prevention, biomechanics, ball/racket, or professional-coaching analysis.
 
 Players can keep a game privately in **My Space** or intentionally publish its reviewed blueprint to the shared game library. Published games can be liked and copied into another player's space. Camera media and coaching data are never part of a published game.
@@ -20,15 +27,15 @@ The repository does **not** claim physical-device validation, measured performan
 
 ## Architecture
 
-| Boundary               | Implementation                                                                                                                    |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| App                    | Next.js App Router, React, strict TypeScript                                                                                      |
-| Motion-game generation | Vercel AI Gateway structured output validated by Zod; explicit deterministic fallback when unavailable                            |
-| Vision                 | MediaPipe Pose Landmarker loaded in the originating browser                                                                       |
-| Runtime                | Deterministic game, dance-comparison, tennis-phase, calibration, and clock state machines                                         |
-| Pairing                | Anonymous-authenticated private Supabase Realtime Broadcast rooms; same-device `BroadcastChannel` fallback for local verification |
-| Persistence            | Browser-local My Space plus Supabase-backed published games, likes, and library membership; local results and coaching summaries  |
-| Data sent to the peer  | Validated blueprint/game state, normalized reference timeline, semantic movement/phase/confidence events, and aggregate result    |
+| Boundary               | Implementation                                                                                                                                                 |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App                    | Next.js App Router, React, strict TypeScript                                                                                                                   |
+| Motion-game generation | Vercel AI Gateway structured output validated by Zod; explicit deterministic fallback when unavailable                                                         |
+| Vision                 | MediaPipe Pose Landmarker loaded in the originating browser                                                                                                    |
+| Runtime                | Deterministic game, dance-comparison, tennis-phase, calibration, and clock state machines                                                                      |
+| Pairing                | Anonymous-authenticated private Supabase Realtime Broadcast rooms; same-device `BroadcastChannel` fallback for local verification                              |
+| Persistence            | Browser-local My Space plus Supabase-backed published games, likes, and library membership; local results, coaching summaries, and scoped personal-best scores |
+| Data sent to the peer  | Validated blueprint/game state, normalized reference timeline, semantic movement/phase/confidence events, and aggregate result                                 |
 
 All persisted blueprints, calibration profiles, player records, and inbound room messages are schema-validated before use. Possession of a high-entropy 12-character room code grants access to its short-lived private topic; the included RLS policy limits anonymous authenticated clients to correctly shaped Move Canvas Broadcast topics.
 
@@ -78,6 +85,11 @@ Anonymous users use the `authenticated` Postgres role and are durable Auth recor
 | `/coach/dance`      | Local-reference Dance Coach display                       |
 | `/coach/tennis`     | Shadow-practice Tennis Coach display                      |
 | `/coach/controller` | Paired phone camera for coaching modes                    |
+
+Motion Games keep their event-based player and team scores. Dance and Tennis
+use the four-part practice score above. Expanding **How this score works** on a
+result explains the inputs and limitations; no hidden AI model or remote user
+ranking is involved.
 
 Bundled reference media is documented in [`REFERENCE-CREDITS.md`](REFERENCE-CREDITS.md).
 YouTube search uses the official Data API and privacy-enhanced embed player. YouTube does not expose

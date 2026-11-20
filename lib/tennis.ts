@@ -1,5 +1,6 @@
 import type { Landmark } from "./pose";
 import { calibrationThresholds, type CoachCalibrationRecord } from "./calibration";
+import { buildPerformanceScore, percentage } from "./performance-score";
 import {
   TENNIS_LIMITATION,
   type CoachResult,
@@ -185,11 +186,20 @@ export function summarizeTennisReps(reps: TennisRep[]): CoachResult {
       text: "All three visible shadow reps followed the supported phase order.",
       confidence: average(reps.map((rep) => rep.confidence)),
     });
+  const issueRate = reps.length
+    ? reps.reduce((sum, rep) => sum + Math.min(2, new Set(rep.issues).size), 0) / (reps.length * 2)
+    : 1;
   return {
     mode: "tennis-coach",
     completedAt: new Date().toISOString(),
     confidence: average(reps.map((rep) => rep.confidence)),
     completedUnits: reps.length,
+    score: buildPerformanceScore({
+      movementMatch: percentage(1 - issueRate),
+      timingOrSequence: reps.length ? 100 : 0,
+      completion: percentage(reps.length / 3),
+      trackingConfidence: percentage(average(reps.map((rep) => rep.confidence))),
+    }),
     cues,
     limitation: TENNIS_LIMITATION,
   };

@@ -118,6 +118,16 @@ describe("deterministic shadow tennis analysis", () => {
     const result = summarizeTennisReps(reps);
     expect(result.cues).toHaveLength(2);
     expect(result.completedUnits).toBe(3);
+    expect(result.score).toEqual({
+      version: "session-score-1.0",
+      total: 63,
+      components: {
+        movementMatch: 0,
+        timingOrSequence: 100,
+        completion: 100,
+        trackingConfidence: 85,
+      },
+    });
     expect(result.limitation).toContain("coarse 2D shadow-movement phases");
   });
 });

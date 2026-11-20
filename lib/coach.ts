@@ -91,11 +91,33 @@ export type FeedbackCue = {
   confidence: number;
 };
 
+export type ScoreComponents = {
+  movementMatch: number;
+  timingOrSequence: number;
+  completion: number;
+  trackingConfidence: number;
+};
+
+export type PerformanceScore = {
+  version: "session-score-1.0";
+  total: number;
+  components: ScoreComponents;
+};
+
+export type PersonalBest = {
+  scope: string;
+  best: number;
+  previous: number | null;
+  improved: boolean;
+};
+
 export type CoachResult = {
   mode: "dance-coach" | "tennis-coach";
   completedAt: string;
   confidence: number;
   completedUnits: number;
+  score: PerformanceScore;
+  personalBest?: PersonalBest;
   cues: FeedbackCue[];
   limitation: string;
 };
@@ -117,6 +139,29 @@ export const coachResultSchema = z
     completedAt: z.string().min(1).max(80),
     confidence: confidenceSchema,
     completedUnits: z.number().int().min(0).max(10_000),
+    score: z
+      .object({
+        version: z.literal("session-score-1.0"),
+        total: z.number().int().min(0).max(100),
+        components: z
+          .object({
+            movementMatch: z.number().int().min(0).max(100),
+            timingOrSequence: z.number().int().min(0).max(100),
+            completion: z.number().int().min(0).max(100),
+            trackingConfidence: z.number().int().min(0).max(100),
+          })
+          .strict(),
+      })
+      .strict(),
+    personalBest: z
+      .object({
+        scope: z.string().trim().min(1).max(180),
+        best: z.number().int().min(0).max(100),
+        previous: z.number().int().min(0).max(100).nullable(),
+        improved: z.boolean(),
+      })
+      .strict()
+      .optional(),
     cues: z
       .array(
         z

@@ -1,5 +1,6 @@
 import type { Landmark, PoseFrame } from "./pose";
 import { calibrationThresholds, type CoachCalibrationRecord } from "./calibration";
+import { buildPerformanceScore, percentage } from "./performance-score";
 import {
   DANCE_LIMITATION,
   serializedBytes,
@@ -185,11 +186,29 @@ export function summarizeDanceEvents(events: DanceFeedbackEvent[]): CoachResult 
       text: "Your clearest poses stayed close to the selected reference timing.",
       confidence: average(qualified.map((event) => event.confidence)),
     });
+  const timingEvents = qualified.filter((event) => event.timing !== "form-mismatch");
+  const movementMatch = percentage(
+    qualified.length
+      ? qualified.filter((event) => event.timing !== "form-mismatch").length / qualified.length
+      : 0,
+  );
+  const timing = percentage(
+    timingEvents.length
+      ? timingEvents.reduce((sum, event) => sum + (event.timing === "on-time" ? 1 : 0.6), 0) /
+          timingEvents.length
+      : 0,
+  );
   return {
     mode: "dance-coach",
     completedAt: new Date().toISOString(),
     confidence: average(qualified.map((event) => event.confidence)),
     completedUnits: qualified.length,
+    score: buildPerformanceScore({
+      movementMatch,
+      timingOrSequence: timing,
+      completion: percentage(qualified.length / 3),
+      trackingConfidence: percentage(average(qualified.map((event) => event.confidence))),
+    }),
     cues,
     limitation: DANCE_LIMITATION,
   };

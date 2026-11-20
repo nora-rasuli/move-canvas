@@ -54,6 +54,8 @@ live camera view on the paired display; it is not uploaded or stored.
 | TENNIS-01 | Guided shadow drills | The user can choose handedness and forehand, backhand, serve, or volley practice with framing, calibration, countdown, rep count, and pause/stop | Paired-device E2E + screens |
 | TENNIS-02 | Deterministic phase analysis | Each supported drill advances through its declared coarse phase order only from visible, confidence-qualified pose evidence | Unit traces + live-device video/screens |
 | TENNIS-03 | Repeated-issue feedback | Feedback is emitted only when an issue repeats in at least two of three confidence-qualified reps; low-confidence reps remain unscored | Unit + E2E |
+| COACH-SCORE-01 | Transparent session score | Dance and Tennis results show a deterministic 0–100 score with movement, timing/sequence, completion, and tracking-confidence components plus disclosed fixed weights | Unit + E2E + copy audit |
+| COACH-SCORE-02 | Private personal best | A score may update a mode-and-practice-specific personal best in local browser storage; it never creates a public or cross-user ranking | Reload E2E + storage audit |
 | COACH-PAIR-01 | Phone and TV coaching roles | TV owns mode/reference/instruction/result presentation; phone owns camera, calibration, comparison/classification, confidence, and consent; either peer can pause or end safely | Two-context E2E + two-device trace |
 | COACH-PRIV-01 | Coaching data boundary | Raw landmarks, user-selected reference-video bytes, and raw audio never leave their originating browser. Live camera video reaches only the paired display after explicit phone consent through WebRTC and is never stored. | Code inspection + network audit |
 | COACH-LIVE-01 | Player self-view | The phone user can explicitly start or stop an encrypted peer-to-peer camera view on the paired TV; failure does not block practice | Two-context WebRTC E2E + physical devices |
@@ -75,7 +77,7 @@ live camera view on the paired display; it is not uploaded or stored.
 | AI boundary | Schema blueprint only; no generated code or remote pose inference | Evaluation disproves useful variation |
 | Coach boundary | No generative AI in v1.1 dance/tennis scoring or feedback decisions; deterministic pose/timing rules only | A later measured evaluation justifies reopening |
 | Safety | Allow-list + personal calibration + deterministic ceilings; coaching stops on low confidence and never presents health or injury claims | Real-device tests expose unsafe behavior |
-| Persistence | Local saved game/results and local coaching summaries; no raw media persistence and no auth | Cross-device continuation becomes mandatory |
+| Persistence | Local saved game/results, coaching summaries, and scoped personal-best scores; no raw media persistence and no auth | Cross-device continuation becomes mandatory |
 | Device roles | Paired TV presents reference/instructions/results and an optional consented live player view; phone performs analysis and controls video consent | Real-device usability makes pairing infeasible |
 | Visual direction | Expressive living-room game and calm, legible coaching surfaces; not a dashboard | TV-distance usability fails |
 
@@ -138,7 +140,8 @@ live camera view on the paired display; it is not uploaded or stored.
   not upload, persist, re-host, fingerprint, or transfer the file to the phone.
 - Only a normalized, time-indexed reference landmark timeline may travel from
   display to phone. Only semantic phase/timing/form categories, confidence,
-  rep counts, and aggregate results may travel from phone to display.
+  rep counts, score components, and aggregate results may travel from phone to
+  display.
 - Signaling transports room/session metadata only. Debug logging must exclude
   media blobs, object URLs, raw landmarks, and personally identifying imagery.
 - Locally saved coaching summaries contain mode, drill/clip label, timestamp,

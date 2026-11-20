@@ -40,6 +40,7 @@ import {
 } from "@/lib/coach";
 import { verificationDanceEvents, verificationTennisPhases } from "@/lib/coach-fixtures";
 import { compareDancePose, summarizeDanceEvents } from "@/lib/dance";
+import { buildPerformanceScore } from "@/lib/performance-score";
 import { hasTrackableBody, type PoseFrame } from "@/lib/pose";
 import { startPoseSession, type PoseSession } from "@/lib/pose-landmarker";
 import {
@@ -682,13 +683,14 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
 
   function finishRun() {
     const referenceResult = summarizeDanceEvents(danceEventsRef.current);
-    const result =
+    const summary =
       mode === "dance-coach"
         ? referenceResult
         : mergeTennisAndReferenceResult(
             summarizeTennisReps(tennisRepsRef.current),
             referenceResult,
           );
+    const result = attachPersonalBest(summary, sessionRef.current);
     const stored = writeBrowserStorage(
       "local",
       "move-canvas:last-coach-summary",
@@ -696,8 +698,8 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
     );
     setLatestCue(
       stored
-        ? "Session complete. Only this aggregate summary is saved locally."
-        : "Session complete. Browser storage is unavailable, so this aggregate summary was not saved.",
+        ? `Session complete. Score ${result.score.total} out of 100. Only this aggregate summary and personal best are saved locally.`
+        : `Session complete. Score ${result.score.total} out of 100. Browser storage is unavailable, so this aggregate summary was not saved.`,
     );
     void connectionRef.current?.send({ type: "coach-result", result });
   }
@@ -1087,6 +1089,7 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
 function mergeTennisAndReferenceResult(tennis: CoachResult, reference: CoachResult): CoachResult {
   const cues = [...reference.cues.slice(0, 1), ...tennis.cues].slice(0, 2);
   const confidenceValues = [tennis.confidence, reference.confidence].filter((value) => value > 0);
+  const referenceContributed = reference.completedUnits > 0;
   return {
     ...tennis,
     confidence: confidenceValues.length
@@ -1096,6 +1099,58 @@ function mergeTennisAndReferenceResult(tennis: CoachResult, reference: CoachResu
         ) / 1_000
       : 0,
     completedUnits: Math.max(tennis.completedUnits, reference.completedUnits),
+    score: buildPerformanceScore({
+      movementMatch: Math.round(
+        referenceContributed
+          ? (tennis.score.components.movementMatch + reference.score.components.movementMatch) / 2
+          : tennis.score.components.movementMatch,
+      ),
+      timingOrSequence: Math.round(
+        referenceContributed
+          ? (tennis.score.components.timingOrSequence +
+              reference.score.components.timingOrSequence) /
+              2
+          : tennis.score.components.timingOrSequence,
+      ),
+      completion: tennis.score.components.completion,
+      trackingConfidence: Math.round(
+        referenceContributed
+          ? (tennis.score.components.trackingConfidence +
+              reference.score.components.trackingConfidence) /
+              2
+          : tennis.score.components.trackingConfidence,
+      ),
+    }),
     cues,
+  };
+}
+
+function attachPersonalBest(result: CoachResult, session: CoachSession | null): CoachResult {
+  if (!session) return result;
+  const scopeId =
+    session.mode === "dance-coach"
+      ? `${session.movementFocus ?? "dance"}:${session.clipLabel ?? "reference"}`
+      : (session.drill ?? "tennis");
+  const scope =
+    session.mode === "dance-coach"
+      ? `${(session.movementFocus ?? "Dance").replaceAll("-", " ")} · ${session.clipLabel ?? "reference"}`
+      : (session.drill ?? "Tennis").replace("shadow-", "").replaceAll("-", " ");
+  const key = `move-canvas:coach-best:${session.mode}:${scopeId}`;
+  const previousRaw = readBrowserStorage("local", key);
+  const storedPrevious = previousRaw === null ? Number.NaN : Number(previousRaw);
+  const previous =
+    Number.isInteger(storedPrevious) && storedPrevious >= 0 && storedPrevious <= 100
+      ? storedPrevious
+      : null;
+  const best = Math.max(previous ?? 0, result.score.total);
+  if (!writeBrowserStorage("local", key, String(best))) return result;
+  return {
+    ...result,
+    personalBest: {
+      scope,
+      best,
+      previous,
+      improved: previous === null || result.score.total > previous,
+    },
   };
 }
