@@ -68,14 +68,14 @@ test("dance and tennis expose clear practice libraries", async ({ page }) => {
   await page.goto("/coach/tennis");
   for (const drill of ["Forehand", "Backhand", "Serve", "Volley"])
     await expect(page.getByRole("radio", { name: drill, exact: true })).toBeVisible();
-  await expect(page.getByText(/Show me on TV/)).toBeVisible();
+  await expect(page.getByText("The player can choose Show me on TV from the phone.")).toBeVisible();
 });
 
 test("the first built-in Dance reference produces a usable local timeline", async ({ page }) => {
   test.setTimeout(120_000);
   await page.goto("/coach/dance");
   await page.getByRole("button", { name: "Analyze this clip" }).first().click();
-  await expect(page.getByRole("status")).toContainText(/confidence-qualified samples/, {
+  await expect(page.getByRole("status")).toContainText(/clear reference frames/, {
     timeout: 100_000,
   });
   await expect(page.getByRole("status")).not.toContainText(/choose a different reference/i);
@@ -96,7 +96,7 @@ test("dance fixture verifies paired semantic flow without claiming real-device e
   await display.getByText("Deterministic verification controls").click();
   await expect(display.getByText(/test-only timeline never appears in production/i)).toBeVisible();
   await display.getByRole("button", { name: "Load landmark fixture" }).click();
-  await expect(display.getByText(/101 confidence-qualified samples/i)).toBeVisible();
+  await expect(display.getByText(/101 clear reference frames/i)).toBeVisible();
 
   const controllerHref = await display
     .getByRole("link", { name: "Open phone controller" })
@@ -273,7 +273,7 @@ test("Dance display reload restores ready, paused, and running session state", a
   await expect(display.getByText(/Reference timeline restored from the paired phone/)).toBeVisible({
     timeout: 10_000,
   });
-  await expect(display.getByText(/101 confidence-qualified samples/)).toBeVisible();
+  await expect(display.getByText(/101 clear reference frames/)).toBeVisible();
   await expect(display.getByRole("button", { name: "Start practice" })).toBeEnabled();
 
   await display.getByRole("button", { name: "Start practice" }).click();

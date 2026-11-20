@@ -861,10 +861,10 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
         <p className="eyebrow">
           {mode === "dance-coach" ? "DANCE COACH" : "TENNIS COACH"} · ROOM {code}
         </p>
-        <h1 id="controller-title">Movement analysis stays on this phone.</h1>
+        <h1 id="controller-title">Your movement stays private on this phone.</h1>
         <p>
-          The display receives confidence-qualified practice events and sends this phone a compact
-          normalized reference timeline. Live video appears on the TV only if you opt in below.
+          Your phone turns movement into practice signals. The TV receives those signals—not camera
+          video—unless you turn on Show me on TV below.
         </p>
         <label className="consent">
           <input
@@ -1073,13 +1073,11 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
         ) : null}
         <p className="limitation">
           {mode === "dance-coach"
-            ? "2D reference-relative practice cues only; no artistry or professional-coaching judgment."
+            ? "Practice cues compare visible 2D position and timing only; they do not grade artistry or replace professional coaching."
             : "2D shadow-phase practice only; no ball, racket, force, speed, spin, placement, biomechanics, or injury guidance."}
         </p>
         <small>
-          {transport === "supabase"
-            ? "Private possession-code relay"
-            : "Same-device verification relay"}
+          {transport === "supabase" ? "Private room connection" : "Same-device verification relay"}
         </small>
       </section>
     </main>

@@ -16,7 +16,6 @@ import {
   TENNIS_LIMITATION,
   coachSessionSchema,
   danceTimelineSchema,
-  serializedBytes,
   type CoachResult,
   type CoachSession,
   type DanceFeedbackEvent,
@@ -539,7 +538,7 @@ export function CoachDisplay({
         <div>
           <p className="eyebrow">
             {mode === "dance-coach"
-              ? "DANCE COACH · REFERENCE-RELATIVE"
+              ? "DANCE COACH · COMPARE WITH A REFERENCE"
               : "TENNIS COACH · SHADOW PRACTICE"}
           </p>
           <h1 id="coach-title">
@@ -692,7 +691,7 @@ export function CoachDisplay({
               ? `Extracting estimated 2D poses locally… ${Math.round(progress * 100)}%`
               : null}
             {extraction === "ready" && timeline
-              ? `${clipLabel} · ${timeline.frames.length} confidence-qualified samples · ${Math.round(serializedBytes(timeline) / 1024)} KiB timeline`
+              ? `${clipLabel} is ready · ${timeline.frames.length} clear reference frames analyzed on this display`
               : null}
             {extraction === "error" ? (
               <span role="alert">{error} Choose a different reference and try again.</span>
@@ -788,8 +787,8 @@ export function CoachDisplay({
             />
           ) : null}
           <p>
-            Scan or open the controller URL. Movement analysis and raw landmarks stay on the phone.
-            The player may separately opt in to an encrypted live camera view on this display.
+            Scan or open this room on a phone. Camera movement is processed on that phone. The TV
+            receives only practice signals unless the player turns on Show me on TV.
           </p>
           {controllerUrl ? (
             <a className="button button-ink" href={controllerUrl} target="_blank" rel="noreferrer">
@@ -798,7 +797,7 @@ export function CoachDisplay({
           ) : null}
           <small>
             {transport === "supabase"
-              ? "Private possession-code relay"
+              ? "Private room connection"
               : "Same-device verification relay"}
           </small>
           <div className="player-live-view">
