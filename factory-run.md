@@ -35,6 +35,7 @@
 | 2026-11-20 | 05 Package 1.3 publish | PASS — exact staged deployment promoted | 06 Live Product Review | `publish-report-1.3.md`; deployment `dpl_6xC4NmGv7WpZeJxHJV4nPUt7zaM6`; canonical routes 200 |
 | 2026-11-20 | 06 Package 1.3 automated live review | PASS for public browser/API scope | Physical TV/phone review | Four Dance/movement and four Tennis choices rendered; controller consent/hands-free controls rendered; YouTube returned 8; zero recent production errors |
 | 2026-11-20 | 05 Package 1.3 portfolio presentation | PASS — case study synchronized and public | Physical TV/phone review | <https://nora-rasuli.github.io/work/move-canvas/> at portfolio commit `9b57459`; portfolio CI and Pages PASS |
+| 2026-11-20 | User Testing Lab intake | READY — simulated track only | Run MC-P01–MC-P08, then physical Nora device session | `user-testing/persona-matrix-1.3.md`, `user-testing/user-testing-plan-1.3.md`; no real-participant evidence yet |
 
 ## Active state
 
