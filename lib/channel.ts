@@ -8,6 +8,7 @@ import type {
   DanceTimeline,
   TennisPhase,
 } from "./coach";
+import type { CoachControl } from "./coach-clock";
 
 export type GameResult = {
   gameTitle: string;
@@ -42,7 +43,7 @@ export type SessionMessage =
   | { type: "coach-controller-ready"; mode: "dance-coach" | "tennis-coach" }
   | { type: "coach-session"; session: CoachSession }
   | { type: "dance-reference"; timeline: DanceTimeline }
-  | { type: "coach-control"; action: "start" | "pause" | "resume" | "stop"; sentAt: number }
+  | ({ type: "coach-control" } & CoachControl)
   | { type: "dance-feedback"; event: DanceFeedbackEvent; sentAt: number }
   | { type: "tennis-progress"; phase: TennisPhase | null; repCount: number; confidence: number; sentAt: number }
   | { type: "coach-result"; result: CoachResult };

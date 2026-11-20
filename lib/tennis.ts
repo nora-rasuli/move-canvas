@@ -1,4 +1,5 @@
 import type { Landmark } from "./pose";
+import { calibrationThresholds, type CoachCalibrationRecord } from "./calibration";
 import {
   TENNIS_LIMITATION,
   type CoachResult,
@@ -54,19 +55,20 @@ export function observeTennisPose(landmarks: Landmark[], handedness: Handedness)
   };
 }
 
-export function classifyTennisPhase(observation: TennisObservation, drill: TennisDrill): TennisPhase | null {
+export function classifyTennisPhase(observation: TennisObservation, drill: TennisDrill, calibration?: CoachCalibrationRecord | null): TennisPhase | null {
   if (observation.confidence < TENNIS_MIN_CONFIDENCE) return null;
+  const thresholds = calibrationThresholds(calibration);
   if (drill === "shadow-serve") {
     if (observation.wristAcrossBody > 0.75 && observation.wristHeight < 0.35) return "follow-through";
-    if (observation.wristHeight > 1.25) return "reach-proxy";
+    if (observation.wristHeight > thresholds.serveReach) return "reach-proxy";
     if (observation.wristHeight > 0.35 && observation.wristBehindBody > 0.15) return "trophy";
     if (Math.abs(observation.wristBehindBody) < 0.45 && observation.wristHeight < 0.35) return "ready";
     return null;
   }
   if (observation.wristAcrossBody > 0.75 && observation.wristHeight > 0.1) return "finish";
   if (observation.wristBehindBody < -0.55 && Math.abs(observation.wristHeight) < 0.7) return "contact-zone-proxy";
-  if (observation.kneeLoad > 1.5 && observation.wristBehindBody > 0.35) return "load";
-  if (Math.abs(observation.shoulderTurn) > 0.14) return "unit-turn";
+  if (observation.kneeLoad > thresholds.forehandLoad && observation.wristBehindBody > 0.35) return "load";
+  if (Math.abs(observation.shoulderTurn) > thresholds.forehandTurn) return "unit-turn";
   if (Math.abs(observation.wristBehindBody) < 0.45 && Math.abs(observation.wristHeight) < 0.5) return "ready";
   return null;
 }

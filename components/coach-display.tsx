@@ -17,6 +17,16 @@ import {
   type TennisPhase,
 } from "@/lib/coach";
 import { createVerificationDanceTimeline } from "@/lib/coach-fixtures";
+import {
+  applyCoachControl,
+  coachElapsed,
+  createClockSyncControl,
+  createCoachClock,
+  createCoachControl,
+  syncReferenceMedia,
+  type CoachControl,
+  type CoachControlAction,
+} from "@/lib/coach-clock";
 import { loadReferenceVideo, extractReferenceTimeline } from "@/lib/reference-extractor";
 import type { DanceOrientation } from "@/lib/dance";
 
@@ -29,6 +39,10 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
   const connectionRef = useRef<SessionConnection | null>(null);
   const currentSessionRef = useRef<CoachSession | null>(null);
   const timelineRef = useRef<DanceTimeline | null>(null);
+  const clockRef = useRef(createCoachClock());
+  const handledControlsRef = useRef(new Set<string>());
+  const countdownTimerRef = useRef<number | null>(null);
+  const applyControlRef = useRef<(control: CoachControl) => void>(() => undefined);
   const [code, setCode] = useState("");
   const [origin, setOrigin] = useState("");
   const [connected, setConnected] = useState(false);
@@ -46,6 +60,8 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
   const [danceEvents, setDanceEvents] = useState<DanceFeedbackEvent[]>([]);
   const [result, setResult] = useState<CoachResult | null>(null);
   const [running, setRunning] = useState(false);
+  const [clock, setClock] = useState(createCoachClock);
+  const [clockNow, setClockNow] = useState(0);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -82,6 +98,8 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
         setConnected(true);
         if (currentSessionRef.current) void connectionRef.current?.send({ type: "coach-session", session: currentSessionRef.current });
         if (mode === "dance-coach" && timelineRef.current) void connectionRef.current?.send({ type: "dance-reference", timeline: timelineRef.current });
+        const sync = createClockSyncControl(clockRef.current, performance.now());
+        if (sync) void connectionRef.current?.send({ type: "coach-control", ...sync });
       }
       if (message.type === "dance-feedback") setDanceEvents((events) => [...events.slice(-39), message.event]);
       if (message.type === "tennis-progress") {
@@ -93,9 +111,7 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
         setRunning(false);
       }
       if (message.type === "coach-control") {
-        if (message.action === "pause") setRunning(false);
-        if (message.action === "resume" || message.action === "start") setRunning(true);
-        if (message.action === "stop") setRunning(false);
+        applyControlRef.current(message);
       }
     }, setConnected).then((connection) => {
       if (!active) return void connection.close();
@@ -106,10 +122,35 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
       active = false;
       referenceDisposeRef.current?.();
       referenceDisposeRef.current = null;
+      if (countdownTimerRef.current !== null) window.clearTimeout(countdownTimerRef.current);
       void connectionRef.current?.close();
       connectionRef.current = null;
     };
   }, [code, mode]);
+
+  useEffect(() => {
+    if (clock.phase !== "running" && clock.phase !== "countdown") return;
+    const timer = window.setInterval(() => setClockNow(performance.now()), 100);
+    return () => window.clearInterval(timer);
+  }, [clock.phase]);
+
+  function applyControlMessage(control: CoachControl) {
+    if (handledControlsRef.current.has(control.id)) return;
+    handledControlsRef.current.add(control.id);
+    if (control.action === "cancel-countdown" && countdownTimerRef.current !== null) {
+      window.clearTimeout(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    const next = applyCoachControl(clockRef.current, control, performance.now());
+    clockRef.current = next;
+    setClock(next);
+    setClockNow(performance.now());
+    setRunning(next.phase === "running");
+    if (mode === "dance-coach" && videoRef.current) syncReferenceMedia(videoRef.current, control);
+  }
+  useEffect(() => {
+    applyControlRef.current = applyControlMessage;
+  });
 
   async function chooseReference(file: File | undefined) {
     if (!file || !videoRef.current) return;
@@ -146,24 +187,41 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
     if (connected) void connectionRef.current?.send({ type: "dance-reference", timeline: fixture });
   }
 
-  async function control(action: "start" | "pause" | "resume" | "stop") {
+  async function control(action: CoachControlAction) {
     if (!currentSession) return;
-    setRunning(action === "start" || action === "resume");
+    const controlMessage = createCoachControl(action, "display", clockRef.current, performance.now(), action === "countdown" ? 3_000 : undefined);
     if (action === "start") {
       setResult(null);
       setDanceEvents([]);
       setRepCount(0);
       await connectionRef.current?.send({ type: "coach-session", session: { ...currentSession, status: "running" } });
       if (timeline) await connectionRef.current?.send({ type: "dance-reference", timeline });
-      if (mode === "dance-coach" && videoRef.current?.src) void videoRef.current.play();
     }
-    if (action === "pause") videoRef.current?.pause();
-    await connectionRef.current?.send({ type: "coach-control", action, sentAt: performance.now() });
+    applyControlMessage(controlMessage);
+    await connectionRef.current?.send({ type: "coach-control", ...controlMessage });
+  }
+
+  function startPractice() {
+    if (mode === "dance-coach") return void control("start");
+    void control("countdown");
+    if (countdownTimerRef.current !== null) window.clearTimeout(countdownTimerRef.current);
+    countdownTimerRef.current = window.setTimeout(() => {
+      countdownTimerRef.current = null;
+      void control("start");
+    }, 3_000);
+  }
+
+  function cancelCountdown() {
+    if (countdownTimerRef.current !== null) window.clearTimeout(countdownTimerRef.current);
+    countdownTimerRef.current = null;
+    void control("cancel-countdown");
   }
 
   const canStart = connected && (mode === "tennis-coach" || extraction === "ready");
   const controllerUrl = origin && code ? `${origin}/coach/controller?mode=${mode}&code=${code}` : "";
   const recentDance = danceEvents.at(-1);
+  const elapsedMs = coachElapsed(clock, clockNow);
+  const countdown = clock.phase === "countdown" ? Math.max(1, Math.ceil(((clock.countdownEndsAt ?? clockNow) - clockNow) / 1_000)) : null;
 
   return (
     <main className={`coach-page coach-${mode}`} id="main">
@@ -218,7 +276,7 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
 
         <div className="coach-panel coach-pair">
           <p className="eyebrow">2 · PAIR THE PHONE CAMERA</p>
-          {controllerUrl ? <QRCodeSVG value={controllerUrl} size={190} bgColor="#f5f0e7" fgColor="#171524" level="M" /> : null}
+          {controllerUrl ? <QRCodeSVG value={controllerUrl} size={190} bgColor="#f5f0e7" fgColor="#171524" level="M" title="Open this coaching room on a phone" /> : null}
           <p>Scan or open the controller URL. Camera frames and raw user landmarks stay on the phone.</p>
           {controllerUrl ? <a className="button button-ink" href={controllerUrl} target="_blank" rel="noreferrer">Open phone controller</a> : null}
           <small>{transport === "supabase" ? "Private possession-code relay" : "Same-device verification relay"}</small>
@@ -227,12 +285,17 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
 
       <section className="coach-run" aria-labelledby="run-title">
         <p className="eyebrow">3 · PRACTICE</p>
-        <h2 id="run-title">{result ? "Session complete" : running ? (mode === "dance-coach" ? recentDance?.cue ?? "Follow the selected reference." : phase ? phase.replaceAll("-", " ") : "Move through the named phases.") : "Start when the phone is framed and ready."}</h2>
+        <h2 id="run-title">{result ? "Session complete" : countdown ? `Starting in ${countdown}` : running ? (mode === "dance-coach" ? recentDance?.cue ?? "Follow the selected reference." : phase ? phase.replaceAll("-", " ") : "Move through the named phases.") : "Start when the phone is framed and ready."}</h2>
+        <p className="coach-clock" data-testid="coach-elapsed">Elapsed {(elapsedMs / 1_000).toFixed(1)}s</p>
+        {mode === "tennis-coach" && countdown ? <p role="status" aria-live="assertive" aria-atomic="true">Tennis practice starts in {countdown}</p> : null}
         {mode === "tennis-coach" ? <p className="rep-count">Qualified reps <strong>{repCount} / 3</strong></p> : null}
+        {mode === "dance-coach" ? <p data-testid="dance-comparison-offset">Comparison offset {recentDance?.offsetMs ?? "—"} ms</p> : null}
         <div className="coach-actions">
-          {!running ? <button className="button button-primary" type="button" disabled={!canStart} onClick={() => void control(result ? "start" : "start")}>{result ? "Practice again" : "Start practice"}</button> : <button className="button button-ink" type="button" onClick={() => void control("pause")}>Pause</button>}
+          {clock.phase === "countdown" ? <button className="button button-ghost" type="button" onClick={cancelCountdown}>Cancel countdown</button> : null}
+          {clock.phase !== "running" && clock.phase !== "paused" && clock.phase !== "countdown" ? <button className="button button-primary" type="button" disabled={!canStart} onClick={startPractice}>{result ? "Practice again" : "Start practice"}</button> : null}
+          {running ? <button className="button button-ink" type="button" onClick={() => void control("pause")}>Pause</button> : null}
           {running ? <button className="button button-ghost" type="button" onClick={() => void control("stop")}>End session</button> : null}
-          {!running && !result && connected ? <button className="button button-ghost" type="button" onClick={() => void control("resume")}>Resume</button> : null}
+          {clock.phase === "paused" && connected ? <button className="button button-primary" type="button" onClick={() => void control("resume")}>Resume</button> : null}
         </div>
         {result ? <div className="coach-result" aria-live="polite"><p>Confidence {Math.round(result.confidence * 100)}% · {result.completedUnits} qualified {mode === "dance-coach" ? "comparisons" : "reps"}</p><ul>{result.cues.map((cue) => <li key={cue.code}>{cue.text}</li>)}</ul><p className="limitation">{result.limitation}</p></div> : null}
       </section>

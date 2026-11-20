@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Landmark, PoseFrame } from "./pose";
 import { buildDanceTimeline, compareDancePose, DANCE_MAX_PAYLOAD_BYTES, normalizeDancePose, summarizeDanceEvents } from "./dance";
 import { serializedBytes } from "./coach";
+import { createCalibrationRecord, type CalibrationSample } from "./calibration";
 
 const pose = (shift = 0, armLift = 0, visibility = 0.95): Landmark[] => {
   const landmarks = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, visibility }));
@@ -54,5 +55,15 @@ describe("dance reference normalization and comparison", () => {
     ]);
     expect(result.cues).toHaveLength(2);
     expect(result.limitation).toContain("estimated 2D pose");
+  });
+
+  it("uses the session calibration to bound pose mismatch tolerance", () => {
+    const timeline = buildDanceTimeline(frames(), 10_000);
+    const sample = (poseSpread: number): CalibrationSample => ({ armReach: 1, kneeLoad: 1.5, shoulderTurn: 0.15, poseSpread, confidence: 0.95 });
+    const tight = createCalibrationRecord("tight-session", sample(1), sample(1));
+    const broad = createCalibrationRecord("broad-session", sample(1), sample(3));
+    const candidate = pose(0.9, -0.3);
+    expect(compareDancePose(timeline, candidate, 5_000, tight).timing).toBe("form-mismatch");
+    expect(compareDancePose(timeline, candidate, 5_000, broad).timing).not.toBe("form-mismatch");
   });
 });

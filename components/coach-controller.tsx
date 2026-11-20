@@ -1,8 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { connectSession, type SessionConnection } from "@/lib/channel";
+import {
+  calibrationStorageKey,
+  captureCalibrationSample,
+  createCalibrationRecord,
+  FIXTURE_CALIBRATION_SAMPLES,
+  parseCalibrationRecord,
+  type CalibrationSample,
+  type CoachCalibrationRecord,
+} from "@/lib/calibration";
+import {
+  applyCoachControl,
+  coachElapsed,
+  createCoachClock,
+  createCoachControl,
+  readCoachNow,
+  type CoachControl,
+  type CoachControlAction,
+  type CoachControlOrigin,
+} from "@/lib/coach-clock";
 import { coachSessionSchema, danceTimelineSchema, type CoachSession, type DanceFeedbackEvent, type DanceTimeline, type TennisPhase } from "@/lib/coach";
 import { verificationDanceEvents, verificationTennisPhases } from "@/lib/coach-fixtures";
 import { compareDancePose, summarizeDanceEvents } from "@/lib/dance";
@@ -21,14 +40,18 @@ export function CoachController() {
   const sessionRef = useRef<CoachSession | null>(null);
   const timelineRef = useRef<DanceTimeline | null>(null);
   const runningRef = useRef(false);
-  const startedAtRef = useRef(0);
+  const clockRef = useRef(createCoachClock());
+  const handledControlsRef = useRef(new Set<string>());
+  const countdownTimerRef = useRef<number | null>(null);
+  const applyControlRef = useRef<(control: CoachControl) => void>(() => undefined);
   const lastSentAtRef = useRef(0);
   const danceEventsRef = useRef<DanceFeedbackEvent[]>([]);
   const tennisRepsRef = useRef<TennisRep[]>([]);
   const trackerRef = useRef<TennisRepTracker | null>(null);
   const lastPhaseRef = useRef<TennisPhase | null>(null);
   const finishRunRef = useRef<() => void>(() => undefined);
-  const calibratedRef = useRef(false);
+  const calibrationRef = useRef<CoachCalibrationRecord | null>(null);
+  const latestFrameRef = useRef<PoseFrame | null>(null);
   const framedRef = useRef(false);
   const [mode, setMode] = useState<CoachMode | null>(null);
   const [code, setCode] = useState("");
@@ -39,8 +62,11 @@ export function CoachController() {
   const [camera, setCamera] = useState<CameraState>("idle");
   const [framed, setFramed] = useState(false);
   const [consent, setConsent] = useState(false);
-  const [calibrated, setCalibrated] = useState(false);
+  const [neutralSample, setNeutralSample] = useState<CalibrationSample | null>(null);
+  const [calibration, setCalibration] = useState<CoachCalibrationRecord | null>(null);
   const [running, setRunning] = useState(false);
+  const [clock, setClock] = useState(createCoachClock);
+  const [clockNow, setClockNow] = useState(0);
   const [latestCue, setLatestCue] = useState("Waiting for the display setup.");
   const [repCount, setRepCount] = useState(0);
 
@@ -66,6 +92,10 @@ export function CoachController() {
         if (parsed.success && parsed.data.mode === mode) {
           sessionRef.current = parsed.data;
           setSession(parsed.data);
+          const savedCalibration = parseCalibrationRecord(sessionStorage.getItem(calibrationStorageKey(parsed.data.id)), parsed.data.id);
+          calibrationRef.current = savedCalibration;
+          setCalibration(savedCalibration);
+          setNeutralSample(savedCalibration?.neutral ?? null);
           if (parsed.data.mode === "tennis-coach" && parsed.data.drill) trackerRef.current = new TennisRepTracker(parsed.data.drill);
         }
       }
@@ -78,10 +108,7 @@ export function CoachController() {
         }
       }
       if (message.type === "coach-control") {
-        if (message.action === "start") beginRun();
-        if (message.action === "pause") pauseRun("Practice paused from the display.");
-        if (message.action === "resume") resumeRun();
-        if (message.action === "stop") finishRunRef.current();
+        applyControlRef.current(message);
       }
     }, setConnected).then((connection) => {
       if (!active) return void connection.close();
@@ -93,6 +120,7 @@ export function CoachController() {
       active = false;
       poseRef.current?.stop();
       streamRef.current?.getTracks().forEach((track) => track.stop());
+      if (countdownTimerRef.current !== null) window.clearTimeout(countdownTimerRef.current);
       void connectionRef.current?.close();
       connectionRef.current = null;
     };
@@ -108,8 +136,10 @@ export function CoachController() {
     runningRef.current = running;
   }, [running]);
   useEffect(() => {
-    calibratedRef.current = calibrated;
-  }, [calibrated]);
+    if (clock.phase !== "running" && clock.phase !== "countdown") return;
+    const timer = window.setInterval(() => setClockNow(performance.now()), 100);
+    return () => window.clearInterval(timer);
+  }, [clock.phase]);
 
   async function enableCamera() {
     if (!consent || !videoRef.current || !navigator.mediaDevices?.getUserMedia) {
@@ -135,19 +165,24 @@ export function CoachController() {
   }
 
   function handlePoseFrame(frame: PoseFrame | null) {
+    latestFrameRef.current = frame;
     const bodyVisible = Boolean(frame && hasTrackableBody(frame.landmarks));
     if (framedRef.current !== bodyVisible) {
       framedRef.current = bodyVisible;
       setFramed(bodyVisible);
     }
     if (!bodyVisible) {
-      if (runningRef.current) pauseRun("Tracking paused. Bring your full body back into view.");
+      if (runningRef.current) {
+        setLatestCue("Tracking paused. Bring your full body back into view.");
+        void dispatchControl("pause", "tracking-loss");
+      }
       setCamera("lost");
       return;
     }
-    setCamera(calibratedRef.current ? "ready" : "framing");
-    if (!runningRef.current || !frame || performance.now() - lastSentAtRef.current < 180) return;
-    lastSentAtRef.current = performance.now();
+    setCamera(calibrationRef.current ? "ready" : "framing");
+    const now = readCoachNow();
+    if (!runningRef.current || !frame || now - lastSentAtRef.current < 180) return;
+    lastSentAtRef.current = now;
     if (mode === "dance-coach") handleDanceFrame(frame);
     if (mode === "tennis-coach") handleTennisFrame(frame);
   }
@@ -155,10 +190,11 @@ export function CoachController() {
   function handleDanceFrame(frame: PoseFrame) {
     const activeTimeline = timelineRef.current;
     if (!activeTimeline) return;
-    const event = compareDancePose(activeTimeline, frame.landmarks, performance.now() - startedAtRef.current);
+    const now = readCoachNow();
+    const event = compareDancePose(activeTimeline, frame.landmarks, coachElapsed(clockRef.current, now), calibrationRef.current);
     danceEventsRef.current.push(event);
     setLatestCue(event.cue);
-    void connectionRef.current?.send({ type: "dance-feedback", event, sentAt: performance.now() });
+    void connectionRef.current?.send({ type: "dance-feedback", event, sentAt: now });
   }
 
   function handleTennisFrame(frame: PoseFrame) {
@@ -166,7 +202,7 @@ export function CoachController() {
     if (!activeSession?.drill || !activeSession.handedness || !trackerRef.current) return;
     const observation = observeTennisPose(frame.landmarks, activeSession.handedness);
     if (!observation) return;
-    const phase = classifyTennisPhase(observation, activeSession.drill);
+    const phase = classifyTennisPhase(observation, activeSession.drill, calibrationRef.current);
     if (phase === lastPhaseRef.current) return;
     lastPhaseRef.current = phase;
     const rep = trackerRef.current.ingest(phase, observation);
@@ -174,46 +210,74 @@ export function CoachController() {
     const count = tennisRepsRef.current.length;
     setRepCount(count);
     setLatestCue(phase ? `Visible phase: ${phase.replaceAll("-", " ")}` : "Phase unclear; this attempt remains unscored.");
-    void connectionRef.current?.send({ type: "tennis-progress", phase, repCount: count, confidence: observation.confidence, sentAt: performance.now() });
-    if (count >= 3) finishRun();
+    void connectionRef.current?.send({ type: "tennis-progress", phase, repCount: count, confidence: observation.confidence, sentAt: readCoachNow() });
+    if (count >= 3) endRun();
   }
 
-  function confirmCalibration() {
-    if (!framed) {
-      setLatestCue("Calibration needs a clearly visible full body.");
-      return;
-    }
-    setCalibrated(true);
-    calibratedRef.current = true;
+  function captureNeutral() {
+    const sample = latestFrameRef.current ? captureCalibrationSample(latestFrameRef.current.landmarks) : null;
+    if (!framed || !sample) return setLatestCue("Neutral capture needs a clearly visible full body.");
+    setNeutralSample(sample);
+    setLatestCue("Neutral sample captured. Move to a comfortable reach and knee bend, then capture range.");
+  }
+
+  function captureRange() {
+    const activeSession = sessionRef.current;
+    const sample = latestFrameRef.current ? captureCalibrationSample(latestFrameRef.current.landmarks) : null;
+    if (!activeSession || !neutralSample || !sample) return setLatestCue("Range capture needs the neutral sample and a clearly visible full body.");
+    const record = createCalibrationRecord(activeSession.id, neutralSample, sample);
+    sessionStorage.setItem(calibrationStorageKey(activeSession.id), JSON.stringify(record));
+    calibrationRef.current = record;
+    setCalibration(record);
     setCamera("ready");
-    setLatestCue("Framing and neutral range captured for this session.");
+    setLatestCue("Comfortable range captured for this session. The local calibration now adjusts supported thresholds.");
   }
 
-  function beginRun() {
+  function resetRun() {
     danceEventsRef.current = [];
     tennisRepsRef.current = [];
     setRepCount(0);
     trackerRef.current = sessionRef.current?.drill ? new TennisRepTracker(sessionRef.current.drill) : null;
-    startedAtRef.current = performance.now();
-    setRunning(true);
     setLatestCue("Practice started. Low-confidence frames remain unscored.");
   }
 
-  function pauseRun(cue = "Practice paused.") {
-    setRunning(false);
-    setLatestCue(cue);
-    void connectionRef.current?.send({ type: "coach-control", action: "pause", sentAt: performance.now() });
+  function applyControlMessage(control: CoachControl) {
+    if (handledControlsRef.current.has(control.id)) return;
+    handledControlsRef.current.add(control.id);
+    if (control.action === "cancel-countdown" && countdownTimerRef.current !== null) {
+      window.clearTimeout(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    const now = readCoachNow();
+    const next = applyCoachControl(clockRef.current, control, now);
+    clockRef.current = next;
+    setClock(next);
+    setClockNow(now);
+    setRunning(next.phase === "running");
+    if (control.action === "start") resetRun();
+    if (control.action === "pause" && control.origin !== "tracking-loss") setLatestCue("Practice paused.");
+    if (control.action === "resume") setLatestCue("Practice resumed.");
+    if (control.action === "stop") finishRunRef.current();
   }
+  useEffect(() => {
+    applyControlRef.current = applyControlMessage;
+  });
 
-  function resumeRun() {
-    startedAtRef.current = performance.now();
-    setRunning(true);
-    setLatestCue("Practice resumed.");
-    void connectionRef.current?.send({ type: "coach-control", action: "resume", sentAt: performance.now() });
+  async function dispatchControl(action: CoachControlAction, origin: CoachControlOrigin = "phone") {
+    const message = createCoachControl(action, origin, clockRef.current, readCoachNow(), action === "countdown" ? 3_000 : undefined);
+    if (action === "stop") {
+      try {
+        await connectionRef.current?.send({ type: "coach-control", ...message });
+      } finally {
+        applyControlMessage(message);
+      }
+      return;
+    }
+    applyControlMessage(message);
+    await connectionRef.current?.send({ type: "coach-control", ...message });
   }
 
   function finishRun() {
-    setRunning(false);
     const result = mode === "dance-coach" ? summarizeDanceEvents(danceEventsRef.current) : summarizeTennisReps(tennisRepsRef.current);
     localStorage.setItem("move-canvas:last-coach-summary", JSON.stringify(result));
     setLatestCue("Session complete. Only this aggregate summary is saved locally.");
@@ -223,12 +287,37 @@ export function CoachController() {
     finishRunRef.current = finishRun;
   });
 
+  function startPractice() {
+    if (mode === "dance-coach") return void dispatchControl("start");
+    void dispatchControl("countdown");
+    if (countdownTimerRef.current !== null) window.clearTimeout(countdownTimerRef.current);
+    countdownTimerRef.current = window.setTimeout(() => {
+      countdownTimerRef.current = null;
+      void dispatchControl("start");
+    }, 3_000);
+  }
+
+  function cancelCountdown() {
+    if (countdownTimerRef.current !== null) window.clearTimeout(countdownTimerRef.current);
+    countdownTimerRef.current = null;
+    void dispatchControl("cancel-countdown");
+  }
+
+  function endRun() {
+    void dispatchControl("stop");
+  }
+
   function useFixtureFraming() {
     setConsent(true);
     setFramed(true);
     framedRef.current = true;
-    setCalibrated(true);
-    calibratedRef.current = true;
+    const activeSession = sessionRef.current;
+    if (!activeSession) return;
+    const record = createCalibrationRecord(activeSession.id, FIXTURE_CALIBRATION_SAMPLES.neutral, FIXTURE_CALIBRATION_SAMPLES.comfortableRange, "fixture");
+    sessionStorage.setItem(calibrationStorageKey(activeSession.id), JSON.stringify(record));
+    setNeutralSample(record.neutral);
+    setCalibration(record);
+    calibrationRef.current = record;
     setCamera("ready");
     setLatestCue("Deterministic fixture framing ready. This is not real-camera evidence.");
   }
@@ -258,12 +347,14 @@ export function CoachController() {
     const count = tennisRepsRef.current.length;
     setRepCount(count);
     setLatestCue(`Visible fixture phase: ${phase.replaceAll("-", " ")}`);
-    void connectionRef.current?.send({ type: "tennis-progress", phase, repCount: count, confidence: 0.9, sentAt: performance.now() });
-    if (count >= 3) finishRun();
+    void connectionRef.current?.send({ type: "tennis-progress", phase, repCount: count, confidence: 0.9, sentAt: readCoachNow() });
+    if (count >= 3) endRun();
   }
 
-  const ready = connected && session && calibrated && (mode === "tennis-coach" || timeline);
-  const phases = useMemo(() => session?.drill ? verificationTennisPhases(session.drill) : [], [session?.drill]);
+  const ready = connected && session && calibration && (mode === "tennis-coach" || timeline);
+  const phases = session?.drill ? verificationTennisPhases(session.drill) : [];
+  const elapsedMs = coachElapsed(clock, clockNow);
+  const countdown = clock.phase === "countdown" ? Math.max(1, Math.ceil(((clock.countdownEndsAt ?? clockNow) - clockNow) / 1_000)) : null;
 
   if (!mode || !code) return <main className="setup-empty" id="main"><h1>Open a valid coaching room from the display.</h1><Link className="button button-primary" href="/coach">Choose a mode</Link></main>;
 
@@ -276,11 +367,14 @@ export function CoachController() {
         <p>The display receives only confidence-qualified semantic practice events{mode === "dance-coach" ? " and sends this phone a compact normalized reference timeline" : ""}.</p>
         <label className="consent"><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} /> I understand the camera is processed on this phone and can stop the session at any time.</label>
         <video ref={videoRef} className="controller-video" muted playsInline aria-label="Local camera preview" />
-        <div className="coach-actions"><button className="button button-primary" type="button" disabled={!consent || camera === "requesting"} onClick={() => void enableCamera()}>{camera === "idle" || camera === "error" ? "Enable camera" : "Restart camera"}</button><button className="button button-ink" type="button" disabled={!framed} onClick={confirmCalibration}>Confirm framing & calibration</button></div>
+        <div className="coach-actions"><button className="button button-primary" type="button" disabled={!consent || camera === "requesting"} onClick={() => void enableCamera()}>{camera === "idle" || camera === "error" ? "Enable camera" : "Restart camera"}</button><button className="button button-ink" type="button" disabled={!framed || !session} onClick={captureNeutral}>Capture neutral stance</button><button className="button button-ink" type="button" disabled={!neutralSample || !framed || !session} onClick={captureRange}>Capture comfortable range</button></div>
         <p className="coach-status" aria-live="polite" role="status">{latestCue}</p>
+        {calibration ? <details className="calibration-record"><summary>Session calibration record</summary><dl><div><dt>Version</dt><dd>{calibration.version}</dd></div><div><dt>Source</dt><dd>{calibration.source}</dd></div><div><dt>Neutral confidence</dt><dd>{Math.round(calibration.neutral.confidence * 100)}%</dd></div><div><dt>Range: reach / knee / turn</dt><dd>{calibration.comfortableRange.armReach.toFixed(2)} / {calibration.comfortableRange.kneeLoad.toFixed(2)} / {calibration.comfortableRange.shoulderTurn.toFixed(2)}</dd></div></dl><p>Stored only in this tab session under {calibration.sessionId}.</p></details> : null}
         <dl className="controller-facts"><div><dt>Camera</dt><dd>{camera}</dd></div><div><dt>Reference/setup</dt><dd>{mode === "dance-coach" ? (timeline ? `${timeline.frames.length} samples` : "waiting") : (session?.drill?.replaceAll("-", " ") ?? "waiting")}</dd></div><div><dt>Qualified reps</dt><dd>{mode === "tennis-coach" ? `${repCount} / 3` : "—"}</dd></div></dl>
-        <div className="coach-actions"><button className="button button-primary" type="button" disabled={!ready || running} onClick={beginRun}>Start on phone</button><button className="button button-ink" type="button" disabled={!running} onClick={() => pauseRun()}>Pause</button><button className="button button-ghost" type="button" disabled={!running} onClick={finishRun}>End safely</button></div>
-        <details className="verification-controls"><summary>Deterministic verification controls</summary><p>These controls verify ordered rules, messaging, and recovery without claiming real-camera evidence.</p><button type="button" onClick={useFixtureFraming}>Use fixture framing</button>{mode === "dance-coach" ? <button type="button" disabled={!timeline} onClick={sendDanceFixture}>Send next fixture comparison</button> : phases.map((phase) => <button type="button" key={phase} onClick={() => sendTennisFixturePhase(phase)}>{phase.replaceAll("-", " ")}</button>)}</details>
+        <p className="coach-clock" data-testid={mode === "dance-coach" ? "dance-comparison-position" : "coach-elapsed"}>{mode === "dance-coach" ? "Comparison position" : "Elapsed"} {(elapsedMs / 1_000).toFixed(1)}s</p>
+        {mode === "tennis-coach" && countdown ? <p role="status" aria-live="assertive" aria-atomic="true">Tennis practice starts in {countdown}</p> : null}
+        <div className="coach-actions">{clock.phase === "countdown" ? <button className="button button-ghost" type="button" onClick={cancelCountdown}>Cancel countdown</button> : null}{clock.phase !== "running" && clock.phase !== "paused" && clock.phase !== "countdown" ? <button className="button button-primary" type="button" disabled={!ready} onClick={startPractice}>Start on phone</button> : null}<button className="button button-ink" type="button" disabled={!running} onClick={() => void dispatchControl("pause")}>Pause</button>{clock.phase === "paused" ? <button className="button button-primary" type="button" onClick={() => void dispatchControl("resume")}>Resume</button> : null}<button className="button button-ghost" type="button" disabled={!running} onClick={endRun}>End safely</button></div>
+        <details className="verification-controls"><summary>Deterministic verification controls</summary><p>These controls verify ordered rules, messaging, and recovery without claiming real-camera evidence.</p><button type="button" disabled={!session} onClick={useFixtureFraming}>Use fixture framing</button>{mode === "dance-coach" ? <><button type="button" disabled={!timeline} onClick={sendDanceFixture}>Send next fixture comparison</button><button type="button" disabled={!running} onClick={() => { setLatestCue("Fixture tracking loss requested."); void dispatchControl("pause", "tracking-loss"); }}>Simulate tracking loss</button></> : phases.map((phase) => <button type="button" key={phase} onClick={() => sendTennisFixturePhase(phase)}>{phase.replaceAll("-", " ")}</button>)}</details>
         <p className="limitation">{mode === "dance-coach" ? "2D reference-relative practice cues only; no artistry or professional-coaching judgment." : "2D shadow-phase practice only; no ball, racket, force, speed, spin, placement, biomechanics, or injury guidance."}</p>
         <small>{transport === "supabase" ? "Private possession-code relay" : "Same-device verification relay"}</small>
       </section>

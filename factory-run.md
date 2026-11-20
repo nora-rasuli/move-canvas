@@ -13,14 +13,18 @@
 | 2026-11-19 | 01 Package change | Frozen Package 1.1 adds Dance Coach and Tennis Coach while preserving Motion Game | Independent additive verification | `project-package.md`, `project-brief.md`, `implementation-handoff.md` |
 | 2026-11-19 | 01 Verification 1.1 | PASS — bounded with strict privacy and truth boundaries | Resume 02 Build | `stage-01-verification-1.1.md`, `release-preflight.md` |
 | 2026-11-19 | 02 Build 1.1 | AUTOMATED CANDIDATE PASS; physical evidence pending | Keep Stage 02; create immutable candidate and hand to fresh Stage 03 | 21 unit tests, production build, 6 Playwright tests, `build-report.md` |
+| 2026-11-19 | 03 Independent validation 1.1 | REWORK on candidate `7374066` | Return bounded clock, calibration, and countdown findings to 02 Build | Preserved `validation-report-1.1.md` |
+| 2026-11-19 | 02 Build 1.1 rework | REPAIR AUTOMATION PASS; physical evidence still pending | Create immutable repair candidate; fresh Stage 03 exact recheck | Shared elapsed/media controls, session calibration, Tennis countdown; 27 unit tests and 6 Playwright tests |
 
 ## Active state
 
-Stage 02 Build against frozen Package 1.1. The automated candidate preserves
-the private multiplayer game and adds bounded Dance/Tennis coach paths. A fresh
-Stage 03 verifier must reproduce real local-video extraction, real phone-camera
-comparison, both physical shadow drills, privacy/network behavior, measured
-latency, recovery, and manual accessibility before any stage advance. Routine
-corrections remain autonomous; deployment, publication, spending, or new account
-authority remains a later explicit boundary.
+Stage 02 Build against frozen Package 1.1. The bounded repair candidate
+preserves the private multiplayer game and corrects the independent report's
+Dance clock/media, inspectable calibration, and Tennis countdown findings. A
+fresh Stage 03 verifier must first reproduce those exact automated repairs,
+then complete real local-video extraction, real phone-camera comparison, both
+physical shadow drills, privacy/network behavior, measured latency, recovery,
+and manual accessibility before any stage advance. Routine corrections remain
+autonomous; deployment, publication, spending, or new account authority
+remains a later explicit boundary.
 

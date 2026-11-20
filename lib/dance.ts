@@ -1,4 +1,5 @@
 import type { Landmark, PoseFrame } from "./pose";
+import { calibrationThresholds, type CoachCalibrationRecord } from "./calibration";
 import {
   DANCE_LIMITATION,
   serializedBytes,
@@ -87,6 +88,7 @@ export function compareDancePose(
   timeline: DanceTimeline,
   landmarks: Landmark[],
   elapsedMs: number,
+  calibration?: CoachCalibrationRecord | null,
 ): DanceFeedbackEvent {
   const user = normalizeDancePose(landmarks, timeline.orientation, elapsedMs);
   if (!user) return { timing: "low-confidence", region: null, offsetMs: null, confidence: 0, cue: "Pause and bring your full body back into view." };
@@ -99,7 +101,7 @@ export function compareDancePose(
   const region = largestRegionMismatch(user, timeline.frames.reduce((closest, frame) => Math.abs(frame.t - elapsedMs) < Math.abs(closest.t - elapsedMs) ? frame : closest));
   const confidence = round3(Math.min(user.c, best.frame.c));
 
-  if (best.distance > 0.68) {
+  if (best.distance > calibrationThresholds(calibration).danceMismatchDistance) {
     return { timing: "form-mismatch", region, offsetMs, confidence, cue: regionCue(region) };
   }
   if (offsetMs >= DANCE_TIMING_THRESHOLD_MS) {
