@@ -21,18 +21,12 @@ const round3 = (value: number) => Math.round(value * 1_000) / 1_000;
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
 export function captureCalibrationSample(landmarks: Landmark[]): CalibrationSample | null {
-  const points = [11, 12, 15, 16, 23, 24, 25, 26].map((index) => landmarks[index]);
-  if (points.some((point) => !point)) return null;
-  const [
-    leftShoulder,
-    rightShoulder,
-    leftWrist,
-    rightWrist,
-    leftHip,
-    rightHip,
-    leftKnee,
-    rightKnee,
-  ] = points;
+  const corePoints = [11, 12, 15, 16, 23, 24].map((index) => landmarks[index]);
+  if (corePoints.some((point) => !point)) return null;
+  const [leftShoulder, rightShoulder, leftWrist, rightWrist, leftHip, rightHip] = corePoints;
+  const visibleKnees = [landmarks[25], landmarks[26]].filter(
+    (point) => point && (point.visibility ?? 1) >= 0.55,
+  );
   const shoulderWidth = Math.max(
     Math.hypot(leftShoulder.x - rightShoulder.x, leftShoulder.y - rightShoulder.y),
     0.08,
@@ -43,13 +37,19 @@ export function captureCalibrationSample(landmarks: Landmark[]): CalibrationSamp
     (leftShoulder.y - leftWrist.y) / shoulderWidth,
     (rightShoulder.y - rightWrist.y) / shoulderWidth,
   );
-  const kneeLoad = (leftKnee.y - leftHip.y + (rightKnee.y - rightHip.y)) / (2 * shoulderWidth);
+  const kneeLoad = visibleKnees.length
+    ? visibleKnees.reduce(
+        (sum, knee, index) => sum + (knee.y - (index === 0 ? leftHip.y : rightHip.y)),
+        0,
+      ) /
+      (visibleKnees.length * shoulderWidth)
+    : 1.1;
   const shoulderTurn = Math.abs((leftShoulder.z ?? 0) - (rightShoulder.z ?? 0)) / shoulderWidth;
   const poseSpread =
-    points.reduce((sum, point) => sum + Math.hypot(point.x - centerX, point.y - centerY), 0) /
-    (points.length * shoulderWidth);
+    corePoints.reduce((sum, point) => sum + Math.hypot(point.x - centerX, point.y - centerY), 0) /
+    (corePoints.length * shoulderWidth);
   const confidence =
-    points.reduce((sum, point) => sum + (point.visibility ?? 1), 0) / points.length;
+    corePoints.reduce((sum, point) => sum + (point.visibility ?? 1), 0) / corePoints.length;
   return {
     armReach: round3(armReach),
     kneeLoad: round3(kneeLoad),

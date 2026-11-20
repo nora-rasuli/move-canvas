@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   calibrationStorageKey,
   calibrationThresholds,
+  captureCalibrationSample,
   createCalibrationRecord,
   parseCalibrationRecord,
   type CalibrationSample,
@@ -18,6 +19,25 @@ const sample = (values: Partial<CalibrationSample> = {}): CalibrationSample => (
 });
 
 describe("session-local calibration", () => {
+  it("captures a seated upper-body range when knees are obscured", () => {
+    const landmarks = Array.from({ length: 33 }, () => ({
+      x: 0.5,
+      y: 0.5,
+      visibility: 1,
+    }));
+    landmarks[11] = { x: 0.4, y: 0.3, visibility: 1 };
+    landmarks[12] = { x: 0.6, y: 0.3, visibility: 1 };
+    landmarks[15] = { x: 0.2, y: 0.2, visibility: 1 };
+    landmarks[16] = { x: 0.8, y: 0.2, visibility: 1 };
+    landmarks[25].visibility = 0.1;
+    landmarks[26].visibility = 0.1;
+
+    expect(captureCalibrationSample(landmarks)).toMatchObject({
+      kneeLoad: 1.1,
+      confidence: 1,
+    });
+  });
+
   it("round-trips an inspectable record only for its exact session key", () => {
     const record = createCalibrationRecord(
       "dance-coach-ROOM12345678",

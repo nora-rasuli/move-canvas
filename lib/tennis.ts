@@ -17,7 +17,7 @@ export type TennisObservation = {
   wristAcrossBody: number;
   wristBehindBody: number;
   shoulderTurn: number;
-  kneeLoad: number;
+  kneeLoad: number | null;
 };
 
 export type TennisRep = {
@@ -44,7 +44,7 @@ export function observeTennisPose(
   const hip = landmarks[handedness === "right" ? 24 : 23];
   const oppositeHip = landmarks[handedness === "right" ? 23 : 24];
   const knee = landmarks[handedness === "right" ? 26 : 25];
-  const points = [shoulder, oppositeShoulder, wrist, hip, oppositeHip, knee];
+  const points = [shoulder, oppositeShoulder, wrist, hip, oppositeHip];
   if (points.some((point) => !point)) return null;
   const confidence =
     points.reduce((sum, point) => sum + (point.visibility ?? 1), 0) / points.length;
@@ -57,7 +57,10 @@ export function observeTennisPose(
     wristAcrossBody: ((oppositeShoulder.x - wrist.x) * direction) / shoulderWidth,
     wristBehindBody: ((wrist.x - shoulder.x) * direction) / shoulderWidth,
     shoulderTurn: Math.abs(shoulder.z ?? 0) - Math.abs(oppositeShoulder.z ?? 0),
-    kneeLoad: (knee.y - hip.y) / shoulderWidth,
+    kneeLoad:
+      knee && (knee.visibility ?? 1) >= TENNIS_MIN_CONFIDENCE
+        ? (knee.y - hip.y) / shoulderWidth
+        : null,
   };
 }
 
@@ -81,7 +84,12 @@ export function classifyTennisPhase(
     if (observation.wristAcrossBody < -0.65 && observation.wristHeight > -0.2) return "finish";
     if (observation.wristBehindBody > 0.55 && Math.abs(observation.wristHeight) < 0.7)
       return "contact-zone-proxy";
-    if (observation.kneeLoad > thresholds.forehandLoad && observation.wristBehindBody < -0.35)
+    if (
+      (observation.kneeLoad === null
+        ? Math.abs(observation.shoulderTurn) > thresholds.forehandTurn
+        : observation.kneeLoad > thresholds.forehandLoad) &&
+      observation.wristBehindBody < -0.35
+    )
       return "load";
     if (Math.abs(observation.shoulderTurn) > thresholds.forehandTurn) return "unit-turn";
     if (Math.abs(observation.wristBehindBody) < 0.45 && Math.abs(observation.wristHeight) < 0.5)
@@ -101,7 +109,12 @@ export function classifyTennisPhase(
   if (observation.wristAcrossBody > 0.75 && observation.wristHeight > 0.1) return "finish";
   if (observation.wristBehindBody < -0.55 && Math.abs(observation.wristHeight) < 0.7)
     return "contact-zone-proxy";
-  if (observation.kneeLoad > thresholds.forehandLoad && observation.wristBehindBody > 0.35)
+  if (
+    (observation.kneeLoad === null
+      ? Math.abs(observation.shoulderTurn) > thresholds.forehandTurn
+      : observation.kneeLoad > thresholds.forehandLoad) &&
+    observation.wristBehindBody > 0.35
+  )
     return "load";
   if (Math.abs(observation.shoulderTurn) > thresholds.forehandTurn) return "unit-turn";
   if (Math.abs(observation.wristBehindBody) < 0.45 && Math.abs(observation.wristHeight) < 0.5)

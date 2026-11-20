@@ -105,7 +105,7 @@ export function compareDancePose(
       region: null,
       offsetMs: null,
       confidence: 0,
-      cue: "Pause and bring your full body back into view.",
+      cue: "Pause and bring your shoulders, hands, and hips back into view.",
     };
   const nearby = timeline.frames.filter((frame) => Math.abs(frame.t - elapsedMs) <= 1_000);
   if (!nearby.length)

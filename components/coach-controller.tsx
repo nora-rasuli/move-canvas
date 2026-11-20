@@ -333,7 +333,7 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
       await videoRef.current.play();
       poseRef.current = await startPoseSession(videoRef.current, handlePoseFrame);
       setCamera("framing");
-      setLatestCue("Bring your full body into view, then confirm framing.");
+      setLatestCue("Bring your shoulders, hands, and hips into view, then confirm framing.");
       if (shareVideoRef.current) await startVideoShare();
     } catch {
       setCamera("error");
@@ -488,8 +488,8 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
     setCalibrationCapture({ stage, secondsRemaining: 5 });
     const setupCue =
       stage === "neutral"
-        ? "Neutral capture armed. Step back, place your full body in frame, and stand naturally."
-        : "Range capture armed. Step back and hold your comfortable reach and knee bend.";
+        ? "Neutral capture armed. Step back, keep your shoulders, hands, and hips in frame, and sit or stand naturally."
+        : "Range capture armed. Step back and hold a comfortable reach, turn, or knee bend.";
     setLatestCue(`${setupCue} Automatic capture starts in 5 seconds.`);
     speakCalibrationCue(`${setupCue} Capturing in five seconds.`);
 
@@ -506,8 +506,8 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
         calibrationCountdownRef.current = null;
         const holdCue =
           pending.stage === "neutral"
-            ? "Hold your natural stance. Waiting for full-body framing."
-            : "Hold your comfortable range. Waiting for full-body framing.";
+            ? "Hold your natural seated or standing position. Waiting for clear framing."
+            : "Hold your comfortable range. Waiting for clear framing.";
         setLatestCue(holdCue);
         speakCalibrationCue(holdCue);
       }
@@ -523,7 +523,7 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
     }
     if (!bodyVisible) {
       if (runningRef.current) {
-        setLatestCue("Tracking paused. Bring your full body back into view.");
+        setLatestCue("Tracking paused. Bring your shoulders, hands, and hips back into view.");
         void dispatchControl("pause", "tracking-loss");
       }
       setCamera("lost");
@@ -601,7 +601,7 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
     const activeSession = sessionRef.current;
     if (!activeSession || !neutralSample || !sample)
       return setLatestCue(
-        "Range capture needs the neutral sample and a clearly visible full body.",
+        "Range capture needs the neutral sample and clearly visible shoulders, hands, and hips.",
       );
     clearPendingCalibration();
     const record = createCalibrationRecord(activeSession.id, neutralSample, sample);

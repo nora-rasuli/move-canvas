@@ -45,7 +45,7 @@ export function evaluateCoachReadiness({
   if (!controller.consent) return pending("Phone connected · camera consent needed");
   if (controller.camera === "error") return pending("Phone connected · camera needs attention");
   if (controller.camera === "lost" || !controller.framed)
-    return pending("Phone connected · full-body framing needed");
+    return pending("Phone connected · shoulders, hands, and hips need framing");
   if (controller.camera !== "ready") return pending("Phone connected · camera setup in progress");
   if (!controller.calibrated) return pending("Phone connected · calibration needed");
   if (referenceRequired && !controller.referenceReady)

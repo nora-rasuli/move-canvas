@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   classifyTennisPhase,
+  observeTennisPose,
   PHASES,
   summarizeTennisReps,
   TennisRepTracker,
@@ -49,6 +50,33 @@ const volley = [
 ];
 
 describe("deterministic shadow tennis analysis", () => {
+  it("keeps seated upper-body observations usable when a knee is obscured", () => {
+    const landmarks = Array.from({ length: 33 }, () => ({
+      x: 0.5,
+      y: 0.5,
+      z: 0,
+      visibility: 1,
+    }));
+    landmarks[11].x = 0.4;
+    landmarks[12].x = 0.6;
+    landmarks[16].x = 0.8;
+    landmarks[26].visibility = 0.1;
+
+    expect(observeTennisPose(landmarks, "right")).toMatchObject({
+      kneeLoad: null,
+      confidence: 1,
+    });
+  });
+
+  it("uses shoulder turn as the seated load proxy", () => {
+    expect(
+      classifyTennisPhase(
+        observation({ kneeLoad: null, shoulderTurn: 0.3, wristBehindBody: 0.7 }),
+        "shadow-forehand",
+      ),
+    ).toBe("load");
+  });
+
   it("classifies every supported ordered phase", () => {
     expect(serve.map((entry) => classifyTennisPhase(entry, "shadow-serve"))).toEqual(
       PHASES["shadow-serve"],
