@@ -73,6 +73,14 @@ describe("session message boundary", () => {
         },
       }),
     ).not.toBeNull();
+    expect(
+      parseSessionMessage({
+        type: "coach-video-signal",
+        mode: "tennis-coach",
+        from: "phone",
+        signal: { kind: "offer", sdp: "v=0\r\n" },
+      }),
+    ).toMatchObject({ type: "coach-video-signal", from: "phone" });
   });
 
   it("rejects malformed or oversized relay payloads", () => {
@@ -89,6 +97,14 @@ describe("session message boundary", () => {
         referenceReady: true,
         sentAt: 0,
         rawLandmarks: [],
+      }),
+    ).toBeNull();
+    expect(
+      parseSessionMessage({
+        type: "coach-video-signal",
+        mode: "dance-coach",
+        from: "phone",
+        signal: { kind: "offer", sdp: "x".repeat(120_001) },
       }),
     ).toBeNull();
     expect(

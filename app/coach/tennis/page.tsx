@@ -5,7 +5,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Tennis Coach",
   description:
-    "Practice coarse shadow-serve and shadow-forehand phases with deterministic 2D pose cues and no ball or racket analysis.",
+    "Choose forehand, backhand, serve, or volley shadow practice with deterministic 2D pose cues and no ball or racket analysis.",
 };
 
 export default function TennisCoachPage() {

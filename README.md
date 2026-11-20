@@ -6,7 +6,7 @@ Move Canvas is a browser-based motion experience with three bounded modes:
 - **Dance Coach** compares estimated 2D pose and timing with bundled licensed human-motion clips or a user-selected 10–90 second local reference clip.
 - **Tennis Coach** combines reference-relative 2D comparison with coarse phase recognition for a ball-free, racket-free shadow serve or shadow forehand.
 
-Raw phone-camera frames, raw user landmarks, reference-video bytes, audio, and face identity stay in the browser where they originate. Coaching output is deterministic practice feedback, not medical, injury-prevention, biomechanics, ball/racket, or professional-coaching analysis.
+Raw user landmarks, reference-video bytes, and audio stay in the browser where they originate. A coaching player may explicitly opt in to an encrypted peer-to-peer live camera view on the paired display; the stream is not uploaded or stored. Coaching output is deterministic practice feedback, not medical, injury-prevention, biomechanics, ball/racket, or professional-coaching analysis.
 
 Players can keep a game privately in **My Space** or intentionally publish its reviewed blueprint to the shared game library. Published games can be liked and copied into another player's space. Camera media and coaching data are never part of a published game.
 

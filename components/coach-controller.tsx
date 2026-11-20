@@ -6,6 +6,7 @@ import {
   connectSession,
   type CoachControllerStateMessage,
   type SessionConnection,
+  type SessionMessage,
 } from "@/lib/channel";
 import { readBrowserStorage, writeBrowserStorage } from "@/lib/browser-storage";
 import {
@@ -57,8 +58,12 @@ type CalibrationCaptureStage = "neutral" | "range";
 export function CoachController({ testHarness = false }: { testHarness?: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const fixtureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const poseRef = useRef<PoseSession | null>(null);
   const connectionRef = useRef<SessionConnection | null>(null);
+  const videoPeerRef = useRef<RTCPeerConnection | null>(null);
+  const pendingVideoCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const shareVideoRef = useRef(false);
   const sessionRef = useRef<CoachSession | null>(null);
   const timelineRef = useRef<DanceTimeline | null>(null);
   const runningRef = useRef(false);
@@ -71,6 +76,10 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
     captureAfter: number;
   } | null>(null);
   const applyControlRef = useRef<(control: CoachControl) => void>(() => undefined);
+  const startVideoShareRef = useRef<() => Promise<void>>(async () => undefined);
+  const handleDisplayVideoSignalRef = useRef<
+    (message: Extract<SessionMessage, { type: "coach-video-signal" }>) => Promise<void>
+  >(async () => undefined);
   const lastSentAtRef = useRef(0);
   const danceEventsRef = useRef<DanceFeedbackEvent[]>([]);
   const tennisRepsRef = useRef<TennisRep[]>([]);
@@ -103,6 +112,10 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
   const [clockNow, setClockNow] = useState(0);
   const [latestCue, setLatestCue] = useState("Waiting for the display setup.");
   const [repCount, setRepCount] = useState(0);
+  const [shareVideo, setShareVideo] = useState(false);
+  const [videoShareStatus, setVideoShareStatus] = useState<"off" | "connecting" | "live" | "error">(
+    "off",
+  );
 
   const calibratedForSession = Boolean(session && calibration?.sessionId === session.id);
   const referenceReady = Boolean(timeline);
@@ -178,7 +191,14 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
               });
             if (sync) await connectionRef.current?.send({ type: "coach-control", ...sync });
           })();
+          if (shareVideoRef.current && streamRef.current) void startVideoShareRef.current();
         }
+        if (
+          message.type === "coach-video-signal" &&
+          message.mode === mode &&
+          message.from === "display"
+        )
+          void handleDisplayVideoSignalRef.current(message);
         if (message.type === "dance-reference") {
           const parsed = danceTimelineSchema.safeParse(message.timeline);
           if (parsed.success) {
@@ -219,6 +239,7 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
       active = false;
       poseRef.current?.stop();
       streamRef.current?.getTracks().forEach((track) => track.stop());
+      videoPeerRef.current?.close();
       if (countdownTimerRef.current !== null) window.clearTimeout(countdownTimerRef.current);
       if (calibrationCountdownRef.current !== null)
         window.clearInterval(calibrationCountdownRef.current);
@@ -285,6 +306,9 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
     runningRef.current = running;
   }, [running]);
   useEffect(() => {
+    shareVideoRef.current = shareVideo;
+  }, [shareVideo]);
+  useEffect(() => {
     if (clock.phase !== "running" && clock.phase !== "countdown") return;
     const timer = window.setInterval(() => setClockNow(performance.now()), 100);
     return () => window.clearInterval(timer);
@@ -310,10 +334,118 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
       poseRef.current = await startPoseSession(videoRef.current, handlePoseFrame);
       setCamera("framing");
       setLatestCue("Bring your full body into view, then confirm framing.");
+      if (shareVideoRef.current) await startVideoShare();
     } catch {
       setCamera("error");
       setLatestCue("Camera or pose model could not start. Check permission and retry.");
     }
+  }
+
+  function stopVideoShare() {
+    videoPeerRef.current?.close();
+    videoPeerRef.current = null;
+    pendingVideoCandidatesRef.current = [];
+    setVideoShareStatus("off");
+  }
+
+  function createVideoPeer() {
+    videoPeerRef.current?.close();
+    const peer = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    });
+    videoPeerRef.current = peer;
+    pendingVideoCandidatesRef.current = [];
+    peer.onicecandidate = (event) => {
+      if (!event.candidate || !mode) return;
+      void connectionRef.current?.send({
+        type: "coach-video-signal",
+        mode,
+        from: "phone",
+        signal: {
+          kind: "ice",
+          candidate: event.candidate.candidate,
+          sdpMid: event.candidate.sdpMid,
+          sdpMLineIndex: event.candidate.sdpMLineIndex,
+        },
+      });
+    };
+    peer.onconnectionstatechange = () => {
+      if (peer.connectionState === "connected") setVideoShareStatus("live");
+      if (["failed", "disconnected", "closed"].includes(peer.connectionState))
+        setVideoShareStatus(peer.connectionState === "closed" ? "off" : "error");
+    };
+    return peer;
+  }
+
+  async function startVideoShare() {
+    const stream = streamRef.current;
+    if (!stream || !mode || !("RTCPeerConnection" in window)) {
+      setVideoShareStatus("error");
+      setLatestCue(
+        stream
+          ? "This browser does not support the private TV live view."
+          : "Enable the camera before sharing a live view with the TV.",
+      );
+      return;
+    }
+    setVideoShareStatus("connecting");
+    try {
+      const peer = createVideoPeer();
+      for (const track of stream.getVideoTracks()) peer.addTrack(track, stream);
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
+      if (!offer.sdp) throw new Error("Missing video offer");
+      await connectionRef.current?.send({
+        type: "coach-video-signal",
+        mode,
+        from: "phone",
+        signal: { kind: "offer", sdp: offer.sdp },
+      });
+    } catch {
+      stopVideoShare();
+      setVideoShareStatus("error");
+      setLatestCue("The private live view could not connect. Practice can continue on the phone.");
+    }
+  }
+  useEffect(() => {
+    startVideoShareRef.current = startVideoShare;
+  });
+
+  async function handleDisplayVideoSignal(
+    message: Extract<SessionMessage, { type: "coach-video-signal" }>,
+  ) {
+    const peer = videoPeerRef.current;
+    if (!peer) return;
+    try {
+      if (message.signal.kind === "answer") {
+        await peer.setRemoteDescription({ type: "answer", sdp: message.signal.sdp });
+        for (const candidate of pendingVideoCandidatesRef.current)
+          await peer.addIceCandidate(candidate);
+        pendingVideoCandidatesRef.current = [];
+      }
+      if (message.signal.kind === "ice") {
+        const candidate = {
+          candidate: message.signal.candidate,
+          sdpMid: message.signal.sdpMid,
+          sdpMLineIndex: message.signal.sdpMLineIndex,
+        };
+        if (peer.remoteDescription) await peer.addIceCandidate(candidate);
+        else pendingVideoCandidatesRef.current.push(candidate);
+      }
+    } catch {
+      setVideoShareStatus("error");
+      setLatestCue("The live TV view lost its secure peer connection. Retry sharing if wanted.");
+    }
+  }
+  useEffect(() => {
+    handleDisplayVideoSignalRef.current = handleDisplayVideoSignal;
+  });
+
+  function updateVideoSharing(enabled: boolean) {
+    setShareVideo(enabled);
+    shareVideoRef.current = enabled;
+    if (enabled) void startVideoShare();
+    else stopVideoShare();
   }
 
   function speakCalibrationCue(message: string) {
@@ -595,6 +727,26 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
   }
 
   function useFixtureFraming() {
+    if (testHarness && !streamRef.current) {
+      const canvas = document.createElement("canvas");
+      canvas.width = 640;
+      canvas.height = 480;
+      const context = canvas.getContext("2d");
+      if (context) {
+        context.fillStyle = "#171524";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.fillStyle = "#c8ff54";
+        context.font = "bold 42px sans-serif";
+        context.fillText("PRIVATE LIVE VIEW TEST", 48, 240);
+      }
+      const stream = canvas.captureStream(5);
+      fixtureCanvasRef.current = canvas;
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        void videoRef.current.play();
+      }
+    }
     setConsent(true);
     setFramed(true);
     framedRef.current = true;
@@ -709,10 +861,10 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
         <p className="eyebrow">
           {mode === "dance-coach" ? "DANCE COACH" : "TENNIS COACH"} · ROOM {code}
         </p>
-        <h1 id="controller-title">Your camera stays on this phone.</h1>
+        <h1 id="controller-title">Movement analysis stays on this phone.</h1>
         <p>
-          The display receives only confidence-qualified semantic practice events
-          {" and sends this phone a compact normalized reference timeline."}
+          The display receives confidence-qualified practice events and sends this phone a compact
+          normalized reference timeline. Live video appears on the TV only if you opt in below.
         </p>
         <label className="consent">
           <input
@@ -729,6 +881,19 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
           playsInline
           aria-label="Local camera preview"
         />
+        <label className="consent">
+          <input
+            type="checkbox"
+            checked={shareVideo}
+            disabled={camera === "idle" || camera === "requesting" || camera === "error"}
+            onChange={(event) => updateVideoSharing(event.target.checked)}
+          />{" "}
+          Show my live camera on the paired TV. This uses an encrypted peer-to-peer connection and
+          is never saved.
+        </label>
+        <p className="field-help" aria-live="polite">
+          TV live view: {videoShareStatus}
+        </p>
         <div className="coach-actions">
           <button
             className="button button-primary"

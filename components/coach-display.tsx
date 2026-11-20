@@ -8,6 +8,7 @@ import {
   createRoomCode,
   type CoachControllerStateMessage,
   type SessionConnection,
+  type SessionMessage,
 } from "@/lib/channel";
 import { readBrowserStorage, writeBrowserStorage } from "@/lib/browser-storage";
 import {
@@ -21,6 +22,7 @@ import {
   type DanceFeedbackEvent,
   type DanceTimeline,
   type Handedness,
+  type MovementFocus,
   type TennisDrill,
   type TennisPhase,
 } from "@/lib/coach";
@@ -54,12 +56,18 @@ export function CoachDisplay({
   const videoRef = useRef<HTMLVideoElement>(null);
   const referenceDisposeRef = useRef<(() => void) | null>(null);
   const connectionRef = useRef<SessionConnection | null>(null);
+  const playerVideoRef = useRef<HTMLVideoElement>(null);
+  const videoPeerRef = useRef<RTCPeerConnection | null>(null);
+  const pendingVideoCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const currentSessionRef = useRef<CoachSession | null>(null);
   const timelineRef = useRef<DanceTimeline | null>(null);
   const clockRef = useRef(createCoachClock());
   const handledControlsRef = useRef(new Set<string>());
   const countdownTimerRef = useRef<number | null>(null);
   const applyControlRef = useRef<(control: CoachControl) => void>(() => undefined);
+  const handlePhoneVideoSignalRef = useRef<
+    (message: Extract<SessionMessage, { type: "coach-video-signal" }>) => Promise<void>
+  >(async () => undefined);
   const controllerReadyRef = useRef(false);
   const [code, setCode] = useState("");
   const [origin, setOrigin] = useState("");
@@ -74,6 +82,7 @@ export function CoachDisplay({
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
   const [drill, setDrill] = useState<TennisDrill>("shadow-serve");
+  const [movementFocus, setMovementFocus] = useState<MovementFocus>("salsa");
   const [handedness, setHandedness] = useState<Handedness>("right");
   const [phase, setPhase] = useState<TennisPhase | null>(null);
   const [repCount, setRepCount] = useState(0);
@@ -88,6 +97,9 @@ export function CoachDisplay({
   const [youtubeStatus, setYoutubeStatus] = useState<"idle" | "loading" | "error">("idle");
   const [youtubeError, setYoutubeError] = useState("");
   const [youtubeSelection, setYoutubeSelection] = useState<YouTubeResult | null>(null);
+  const [playerVideoStatus, setPlayerVideoStatus] = useState<
+    "waiting" | "connecting" | "live" | "error"
+  >("waiting");
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -110,10 +122,11 @@ export function CoachDisplay({
             createdAt: new Date().toISOString(),
             status: running ? "running" : "ready",
             clipLabel,
+            ...(mode === "dance-coach" ? { movementFocus } : {}),
             ...(mode === "tennis-coach" ? { drill, handedness } : {}),
           }
         : null,
-    [clipLabel, code, drill, handedness, mode, running],
+    [clipLabel, code, drill, handedness, mode, movementFocus, running],
   );
 
   useEffect(() => {
@@ -156,12 +169,21 @@ export function CoachDisplay({
         if (message.type === "coach-controller-left" && message.mode === mode) {
           setControllerState(null);
           setPeerNow(Date.now());
+          stopPlayerVideo();
         }
+        if (
+          message.type === "coach-video-signal" &&
+          message.mode === mode &&
+          message.from === "phone"
+        )
+          void handlePhoneVideoSignalRef.current(message);
         if (message.type === "coach-session") {
           const parsed = coachSessionSchema.safeParse(message.session);
           if (parsed.success && parsed.data.mode === mode) {
             if (mode === "dance-coach" && parsed.data.clipLabel)
               setClipLabel(parsed.data.clipLabel);
+            if (mode === "dance-coach" && parsed.data.movementFocus)
+              setMovementFocus(parsed.data.movementFocus);
             if (mode === "tennis-coach") {
               if (parsed.data.drill) setDrill(parsed.data.drill);
               if (parsed.data.handedness) setHandedness(parsed.data.handedness);
@@ -213,6 +235,8 @@ export function CoachDisplay({
       referenceDisposeRef.current?.();
       referenceDisposeRef.current = null;
       if (countdownTimerRef.current !== null) window.clearTimeout(countdownTimerRef.current);
+      videoPeerRef.current?.close();
+      videoPeerRef.current = null;
       void connectionRef.current?.close();
       connectionRef.current = null;
     };
@@ -228,6 +252,88 @@ export function CoachDisplay({
     const timer = window.setInterval(() => setClockNow(performance.now()), 100);
     return () => window.clearInterval(timer);
   }, [clock.phase]);
+
+  function stopPlayerVideo() {
+    videoPeerRef.current?.close();
+    videoPeerRef.current = null;
+    pendingVideoCandidatesRef.current = [];
+    if (playerVideoRef.current) playerVideoRef.current.srcObject = null;
+    setPlayerVideoStatus("waiting");
+  }
+
+  function createDisplayVideoPeer() {
+    stopPlayerVideo();
+    const peer = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    });
+    videoPeerRef.current = peer;
+    setPlayerVideoStatus("connecting");
+    peer.ontrack = (event) => {
+      const [stream] = event.streams;
+      if (playerVideoRef.current && stream) playerVideoRef.current.srcObject = stream;
+    };
+    peer.onicecandidate = (event) => {
+      if (!event.candidate) return;
+      void connectionRef.current?.send({
+        type: "coach-video-signal",
+        mode,
+        from: "display",
+        signal: {
+          kind: "ice",
+          candidate: event.candidate.candidate,
+          sdpMid: event.candidate.sdpMid,
+          sdpMLineIndex: event.candidate.sdpMLineIndex,
+        },
+      });
+    };
+    peer.onconnectionstatechange = () => {
+      if (peer.connectionState === "connected") setPlayerVideoStatus("live");
+      if (["failed", "disconnected"].includes(peer.connectionState)) setPlayerVideoStatus("error");
+    };
+    return peer;
+  }
+
+  async function handlePhoneVideoSignal(
+    message: Extract<SessionMessage, { type: "coach-video-signal" }>,
+  ) {
+    try {
+      if (message.signal.kind === "offer") {
+        if (!("RTCPeerConnection" in window)) {
+          setPlayerVideoStatus("error");
+          return;
+        }
+        const peer = createDisplayVideoPeer();
+        await peer.setRemoteDescription({ type: "offer", sdp: message.signal.sdp });
+        const answer = await peer.createAnswer();
+        await peer.setLocalDescription(answer);
+        if (!answer.sdp) throw new Error("Missing video answer");
+        await connectionRef.current?.send({
+          type: "coach-video-signal",
+          mode,
+          from: "display",
+          signal: { kind: "answer", sdp: answer.sdp },
+        });
+        for (const candidate of pendingVideoCandidatesRef.current)
+          await peer.addIceCandidate(candidate);
+        pendingVideoCandidatesRef.current = [];
+      }
+      if (message.signal.kind === "ice") {
+        const candidate = {
+          candidate: message.signal.candidate,
+          sdpMid: message.signal.sdpMid,
+          sdpMLineIndex: message.signal.sdpMLineIndex,
+        };
+        const peer = videoPeerRef.current;
+        if (peer?.remoteDescription) await peer.addIceCandidate(candidate);
+        else pendingVideoCandidatesRef.current.push(candidate);
+      }
+    } catch {
+      setPlayerVideoStatus("error");
+    }
+  }
+  useEffect(() => {
+    handlePhoneVideoSignalRef.current = handlePhoneVideoSignal;
+  });
 
   function applyControlMessage(control: CoachControl) {
     if (handledControlsRef.current.has(control.id)) return;
@@ -448,11 +554,32 @@ export function CoachDisplay({
           <p className="eyebrow">1 · PREPARE ON THIS DISPLAY</p>
           <div className="reference-library" aria-labelledby="reference-library-title">
             <div>
-              <h2 id="reference-library-title">Choose a real movement reference</h2>
+              <h2 id="reference-library-title">What do you want to practice?</h2>
               <p>
                 Built-in and uploaded clips are analyzed locally into a compact 2D pose timeline.
               </p>
             </div>
+            {mode === "dance-coach" ? (
+              <fieldset>
+                <legend>Dance and movement style</legend>
+                {[
+                  ["salsa", "Salsa"],
+                  ["hip-hop", "Hip-hop"],
+                  ["contemporary", "Contemporary"],
+                  ["yoga-mobility", "Yoga & mobility"],
+                ].map(([value, label]) => (
+                  <label className="choice" key={value}>
+                    <input
+                      type="radio"
+                      name="movement-focus"
+                      checked={movementFocus === value}
+                      onChange={() => setMovementFocus(value as MovementFocus)}
+                    />{" "}
+                    {label}
+                  </label>
+                ))}
+              </fieldset>
+            ) : null}
             <div className="reference-card-grid">
               {clipsForMode(mode).map((clip) => (
                 <article className="reference-card" key={clip.id}>
@@ -523,25 +650,23 @@ export function CoachDisplay({
                 </select>
               </label>
               <fieldset>
-                <legend>Shadow drill</legend>
-                <label className="choice">
-                  <input
-                    type="radio"
-                    name="drill"
-                    checked={drill === "shadow-serve"}
-                    onChange={() => setDrill("shadow-serve")}
-                  />{" "}
-                  Shadow Serve
-                </label>
-                <label className="choice">
-                  <input
-                    type="radio"
-                    name="drill"
-                    checked={drill === "shadow-forehand"}
-                    onChange={() => setDrill("shadow-forehand")}
-                  />{" "}
-                  Shadow Forehand
-                </label>
+                <legend>What do you want to practice?</legend>
+                {[
+                  ["shadow-forehand", "Forehand"],
+                  ["shadow-backhand", "Backhand"],
+                  ["shadow-serve", "Serve"],
+                  ["shadow-volley", "Volley"],
+                ].map(([value, label]) => (
+                  <label className="choice" key={value}>
+                    <input
+                      type="radio"
+                      name="drill"
+                      checked={drill === value}
+                      onChange={() => setDrill(value as TennisDrill)}
+                    />{" "}
+                    {label}
+                  </label>
+                ))}
               </fieldset>
             </>
           )}
@@ -576,7 +701,11 @@ export function CoachDisplay({
                   minLength={2}
                   maxLength={80}
                   onChange={(event) => setYoutubeQuery(event.target.value)}
-                  placeholder={mode === "dance-coach" ? "easy dance routine" : "tennis serve drill"}
+                  placeholder={
+                    mode === "dance-coach"
+                      ? `${movementFocus.replace("-", " ")} beginner routine`
+                      : `${drill.replace("shadow-", "")} tennis practice`
+                  }
                 />
               </label>
               <button
@@ -650,7 +779,8 @@ export function CoachDisplay({
             />
           ) : null}
           <p>
-            Scan or open the controller URL. Camera frames and raw user landmarks stay on the phone.
+            Scan or open the controller URL. Movement analysis and raw landmarks stay on the phone.
+            The player may separately opt in to an encrypted live camera view on this display.
           </p>
           {controllerUrl ? (
             <a className="button button-ink" href={controllerUrl} target="_blank" rel="noreferrer">
@@ -662,6 +792,24 @@ export function CoachDisplay({
               ? "Private possession-code relay"
               : "Same-device verification relay"}
           </small>
+          <div className="player-live-view">
+            <video
+              ref={playerVideoRef}
+              autoPlay
+              muted
+              playsInline
+              aria-label="Live player camera from the paired phone"
+            />
+            <p aria-live="polite">
+              {playerVideoStatus === "live"
+                ? "Live player view · peer-to-peer · not recorded"
+                : playerVideoStatus === "connecting"
+                  ? "Connecting the private live player view…"
+                  : playerVideoStatus === "error"
+                    ? "Live player view unavailable. Practice can continue without it."
+                    : "The player can choose Show me on TV from the phone."}
+            </p>
+          </div>
         </div>
       </section>
 

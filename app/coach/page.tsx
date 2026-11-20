@@ -22,8 +22,8 @@ export default function CoachModesPage() {
         <p className="eyebrow">CHOOSE THE ROOM</p>
         <h1 id="mode-title">Play, compare, or practice.</h1>
         <p>
-          Three private phone-camera experiences. Raw camera and reference media stay in the browser
-          where they originate.
+          Three phone-camera experiences. Movement analysis stays on the phone; optional live video
+          sharing with the paired display is always controlled by the player.
         </p>
       </section>
       <section className="mode-grid" aria-label="Move Canvas modes">
@@ -36,14 +36,16 @@ export default function CoachModesPage() {
         <Link className="mode-card mode-dance" href="/coach/dance">
           <span>02</span>
           <h2>Dance Coach</h2>
-          <p>Compare estimated 2D pose and timing with a local 10–90 second reference.</p>
+          <p>Choose salsa, hip-hop, contemporary, or yoga and mobility reference practice.</p>
           <strong>Set up a reference →</strong>
         </Link>
         <Link className="mode-card mode-tennis" href="/coach/tennis">
           <span>03</span>
           <h2>Tennis Coach</h2>
-          <p>Practice coarse shadow-serve or shadow-forehand phases without a ball or racket.</p>
-          <strong>Choose a shadow drill →</strong>
+          <p>
+            Choose forehand, backhand, serve, or volley shadow practice without a ball or racket.
+          </p>
+          <strong>Choose a tennis skill →</strong>
         </Link>
       </section>
       <aside className="truth-banner">

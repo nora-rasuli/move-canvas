@@ -3,7 +3,7 @@
 ## Package identity
 
 - **Project:** Move Canvas
-- **Version:** 1.1 frozen
+- **Version:** 1.3 frozen
 - **Target:** One-week functional public release
 - **Opportunity:** OPP-2026-014
 - **Portfolio gap:** Interactive B2C game, real-time computer vision, peer
@@ -18,11 +18,12 @@ controller and paired TV/browser display. In **Motion Game**, a player describes
 reviews, calibrates, and plays a bounded generated collect-and-dodge game. In
 **Dance Coach**, the display analyzes a locally selected reference clip into a
 pose timeline, while the phone compares the player's on-device pose and timing
-against that timeline. In **Tennis Coach**, the phone guides and evaluates a
-shadow serve or shadow forehand through deterministic movement phases. Raw
-camera frames and user-supplied reference video are never sent to a server or
-the peer device; only normalized reference landmarks, semantic phase events,
-confidence, scores, and short feedback cues cross the paired data channel.
+against that timeline. Dance and movement practice is organized into salsa,
+hip-hop, contemporary, and yoga/mobility focuses. In **Tennis Coach**, the
+phone guides confidence-qualified forehand, backhand, serve, or volley shadow
+practice. Raw landmarks and user-supplied reference video are never sent to a
+server or peer. A player may separately opt in to an encrypted peer-to-peer
+live camera view on the paired display; it is not uploaded or stored.
 
 ## Requirement map
 
@@ -41,7 +42,7 @@ confidence, scores, and short feedback cues cross the paired data channel.
 | EVAL-01 | Regression threshold | ≥9/10 valid safe outputs; 10/10 forbidden-move rejection; recorded model/config | Versioned report |
 | HUMAN-01 | User authority | No blueprint runs before review; edits and override persist | E2E |
 | PROV-01 | Provenance | Prompt, generator/model, config, validation, edits, calibration version retained | Inspectable record |
-| PRIV-01 | Camera privacy | Raw frames stay local; signaling/game transport contains no image payload | Code + network audit |
+| PRIV-01 | Camera privacy | Raw landmarks stay local; signaling/game transport contains no image payload. Coaching video reaches the paired display only through an explicit, encrypted peer-to-peer live-view opt-in and is not stored. | Code + network audit |
 | ECON-01 | Cost/latency | Generation target p95 <8 s and ≤$0.02; controller p95 <150 ms; fallback verified | Measured profile |
 | SAVE-01 | Retained useful output | Blueprint and result save locally and can be replayed | Reload E2E |
 | MODE-01 | First-class mode selection | Motion Game, Dance Coach, and Tennis Coach are reachable, described accurately, and preserve mode state through setup | Keyboard E2E + screens |
@@ -50,11 +51,14 @@ confidence, scores, and short feedback cues cross the paired data channel.
 | DANCE-02 | Reference normalization | Reference landmarks are normalized for scale, orientation, visibility, and selected lead side, then sampled at no more than 10 Hz; low-confidence frames are excluded | Unit fixtures + visual trace |
 | DANCE-03 | Timed pose comparison | The phone compares the player's local pose stream with the synchronized reference timeline and distinguishes on-time, early, late, and form-mismatch states without uploading frames | Deterministic traces + paired-device E2E |
 | DANCE-04 | Actionable dance result | During and after a run, the user receives at most two clear timing/form cues, named by body region and qualified by confidence | UI E2E + copy audit |
-| TENNIS-01 | Guided shadow drills | The user can choose handedness and complete one shadow serve drill and one shadow forehand drill with framing, calibration, countdown, rep count, and pause/stop | Paired-device E2E + screens |
-| TENNIS-02 | Deterministic phase analysis | Serve phases (ready, trophy, reach proxy, follow-through) and forehand phases (ready, unit turn, load, contact-zone proxy, finish) advance only from visible, confidence-qualified pose evidence | Unit traces + live-device video/screens |
+| TENNIS-01 | Guided shadow drills | The user can choose handedness and forehand, backhand, serve, or volley practice with framing, calibration, countdown, rep count, and pause/stop | Paired-device E2E + screens |
+| TENNIS-02 | Deterministic phase analysis | Each supported drill advances through its declared coarse phase order only from visible, confidence-qualified pose evidence | Unit traces + live-device video/screens |
 | TENNIS-03 | Repeated-issue feedback | Feedback is emitted only when an issue repeats in at least two of three confidence-qualified reps; low-confidence reps remain unscored | Unit + E2E |
 | COACH-PAIR-01 | Phone and TV coaching roles | TV owns mode/reference/instruction/result presentation; phone owns camera, calibration, comparison/classification, confidence, and consent; either peer can pause or end safely | Two-context E2E + two-device trace |
-| COACH-PRIV-01 | Coaching data boundary | No camera frame, user performance video, user-selected reference-video byte, face identity, or raw audio leaves its originating browser | Code inspection + network audit |
+| COACH-PRIV-01 | Coaching data boundary | Raw landmarks, user-selected reference-video bytes, and raw audio never leave their originating browser. Live camera video reaches only the paired display after explicit phone consent through WebRTC and is never stored. | Code inspection + network audit |
+| COACH-LIVE-01 | Player self-view | The phone user can explicitly start or stop an encrypted peer-to-peer camera view on the paired TV; failure does not block practice | Two-context WebRTC E2E + physical devices |
+| PRACTICE-01 | Clear practice choice | Dance/movement offers salsa, hip-hop, contemporary, and yoga/mobility; Tennis offers forehand, backhand, serve, and volley before reference selection | Keyboard E2E + copy audit |
+| CAL-HANDS-01 | Hands-free calibration | One tap arms a five-second countdown; full-body neutral/range capture completes automatically with visible and spoken status | Browser E2E + physical device |
 | COACH-TRUTH-01 | Truthful coaching claims | UI labels output as 2D pose-based practice cues, exposes confidence/limitations, and makes no medical, injury-prevention, professional-coaching, ball-flight, racket-face, or biomechanical-accuracy claim | Copy audit + screenshots |
 | COACH-A11Y-01 | Accessible coaching setup | Mode choice, consent, handedness, calibration, drill controls, feedback, and results are keyboard reachable and announced; visual cues have text/audio-independent equivalents | axe + keyboard + manual |
 | COACH-QA-01 | Coaching failure and recovery | Unsupported video, decode/pose failure, poor framing, low confidence, disconnect, backgrounding, and tracking loss pause or recover with an actionable state | Failure E2E + screenshots |
@@ -65,14 +69,14 @@ confidence, scores, and short feedback cues cross the paired data channel.
 
 | Decision | Choice | Reopen only if |
 |---|---|---|
-| Scope | Preserve the collect-and-dodge game and add local-reference Dance Coach plus shadow serve/forehand Tennis Coach | Any of the three first-class golden paths cannot remain complete |
+| Scope | Preserve Motion Game and provide focused dance/movement and four-skill shadow-tennis practice | Any first-class golden path cannot remain complete |
 | Data | Fresh prompt, camera landmarks, semantic events; no uploaded video | Privacy requirement cannot be met |
 | Architecture | Next.js, AI SDK for game blueprints only, MediaPipe on each originating device, deterministic coach analyzers, WebRTC data channel, minimal signaling | Spike proves a component infeasible |
 | AI boundary | Schema blueprint only; no generated code or remote pose inference | Evaluation disproves useful variation |
 | Coach boundary | No generative AI in v1.1 dance/tennis scoring or feedback decisions; deterministic pose/timing rules only | A later measured evaluation justifies reopening |
 | Safety | Allow-list + personal calibration + deterministic ceilings; coaching stops on low confidence and never presents health or injury claims | Real-device tests expose unsafe behavior |
 | Persistence | Local saved game/results and local coaching summaries; no raw media persistence and no auth | Cross-device continuation becomes mandatory |
-| Device roles | Paired TV/display presents reference/instructions/results; phone performs user-camera analysis; no phone-only coach path in v1.1 | Real-device usability makes pairing infeasible |
+| Device roles | Paired TV presents reference/instructions/results and an optional consented live player view; phone performs analysis and controls video consent | Real-device usability makes pairing infeasible |
 | Visual direction | Expressive living-room game and calm, legible coaching surfaces; not a dashboard | TV-distance usability fails |
 
 ## Cut order

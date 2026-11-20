@@ -3,9 +3,9 @@ import { coachTestHarnessEnabled } from "@/lib/test-harness";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Dance Coach",
+  title: "Dance & Movement Coach",
   description:
-    "Compare estimated 2D pose and timing against a local reference clip without uploading the clip or camera frames.",
+    "Choose salsa, hip-hop, contemporary, or yoga and mobility practice against a local reference clip.",
 };
 
 export default function DanceCoachPage() {

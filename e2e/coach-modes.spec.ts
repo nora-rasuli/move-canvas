@@ -59,6 +59,18 @@ test("mode selection exposes three truthful first-class paths", async ({ page })
   await page.screenshot({ path: "evidence/package-1.1/mode-selection.png", fullPage: true });
 });
 
+test("dance and tennis expose clear practice libraries", async ({ page }) => {
+  await page.goto("/coach/dance");
+  await expect(page.getByRole("heading", { name: "What do you want to practice?" })).toBeVisible();
+  for (const focus of ["Salsa", "Hip-hop", "Contemporary", "Yoga & mobility"])
+    await expect(page.getByLabel(focus)).toBeVisible();
+
+  await page.goto("/coach/tennis");
+  for (const drill of ["Forehand", "Backhand", "Serve", "Volley"])
+    await expect(page.getByRole("radio", { name: drill, exact: true })).toBeVisible();
+  await expect(page.getByText(/Show me on TV/)).toBeVisible();
+});
+
 test("dance fixture verifies paired semantic flow without claiming real-device evidence", async ({
   browser,
 }) => {
@@ -88,6 +100,10 @@ test("dance fixture verifies paired semantic flow without claiming real-device e
   await phone.getByRole("button", { name: "Use fixture framing" }).click();
   await expect(phone.getByText("Session calibration record")).toBeVisible();
   await expect(phone.getByRole("button", { name: "Start on phone" })).toBeEnabled();
+  await phone.getByLabel(/Show my live camera on the paired TV/).check();
+  await expect(display.getByText(/Live player view · peer-to-peer/)).toBeVisible({
+    timeout: 10_000,
+  });
 
   await display.getByRole("button", { name: "Start practice" }).click();
   await expect.poll(async () => (await readMediaAudit(display)).playCount).toBe(1);
@@ -282,7 +298,7 @@ test("Dance display reload restores ready, paused, and running session state", a
   await Promise.all([displayContext.close(), phoneContext.close()]);
 });
 
-for (const drill of ["Shadow Serve", "Shadow Forehand"] as const) {
+for (const drill of ["Serve", "Forehand"] as const) {
   test(`${drill} fixture requires three ordered semantic reps`, async ({ browser }) => {
     const displayContext = await browser.newContext({ baseURL, reducedMotion: "reduce" });
     const phoneContext = await browser.newContext({
@@ -292,7 +308,7 @@ for (const drill of ["Shadow Serve", "Shadow Forehand"] as const) {
     });
     const display = await displayContext.newPage();
     await display.goto("/coach/tennis");
-    await display.getByLabel(drill).check();
+    await display.getByRole("radio", { name: drill, exact: true }).check();
     await display.getByText("Deterministic verification controls").click();
     await display.getByRole("button", { name: "Load landmark fixture" }).click();
     const controllerHref = await display
@@ -306,7 +322,7 @@ for (const drill of ["Shadow Serve", "Shadow Forehand"] as const) {
     await phone.getByRole("button", { name: "Use fixture framing" }).click();
     await expect(phone.getByText("Session calibration record")).toBeVisible();
 
-    if (drill === "Shadow Serve") {
+    if (drill === "Serve") {
       await display.getByRole("button", { name: "Start practice" }).click();
       await expect(display.getByText(/Tennis practice starts in 3/)).toBeVisible();
       await expect(phone.getByText(/Tennis practice starts in 3/)).toBeVisible();
@@ -339,7 +355,7 @@ for (const drill of ["Shadow Serve", "Shadow Forehand"] as const) {
     ).toEqual([]);
 
     const phases =
-      drill === "Shadow Serve"
+      drill === "Serve"
         ? ["ready", "trophy", "reach proxy", "follow through"]
         : ["ready", "unit turn", "load", "contact zone proxy", "finish"];
     for (let rep = 0; rep < 3; rep += 1) {
@@ -350,7 +366,7 @@ for (const drill of ["Shadow Serve", "Shadow Forehand"] as const) {
     await expect(display.getByText(/coarse 2D shadow-movement phases/i).last()).toBeVisible();
     await expect(display.locator(".rep-count")).toContainText("3 / 3");
     await display.screenshot({
-      path: `evidence/package-1.1/${drill === "Shadow Serve" ? "serve" : "forehand"}-result-fixture.png`,
+      path: `evidence/package-1.1/${drill === "Serve" ? "serve" : "forehand"}-result-fixture.png`,
       fullPage: true,
     });
     await Promise.all([displayContext.close(), phoneContext.close()]);

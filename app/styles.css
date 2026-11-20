@@ -1370,6 +1370,29 @@ footer p {
 .coach-pair .eyebrow {
   justify-self: start;
 }
+.player-live-view {
+  width: min(100%, 520px);
+  overflow: hidden;
+  border: 1px solid rgba(23, 21, 36, 0.16);
+  border-radius: 1rem;
+  background: var(--ink);
+  color: white;
+}
+.player-live-view video {
+  display: block;
+  width: 100%;
+  min-height: 240px;
+  max-height: 420px;
+  object-fit: cover;
+  background: #09090e;
+  transform: scaleX(-1);
+}
+.player-live-view p {
+  margin: 0;
+  padding: 0.8rem 1rem;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.78rem;
+}
 .choice {
   display: flex;
   gap: 0.6rem;

@@ -33,6 +33,21 @@ const forehand = [
   observation({ wristAcrossBody: 1, wristHeight: 0.4 }),
 ];
 
+const backhand = [
+  observation(),
+  observation({ shoulderTurn: 0.35 }),
+  observation({ wristBehindBody: -0.7, kneeLoad: 1.8 }),
+  observation({ wristBehindBody: 0.8 }),
+  observation({ wristAcrossBody: -1, wristHeight: 0.4 }),
+];
+
+const volley = [
+  observation(),
+  observation({ shoulderTurn: 0.35 }),
+  observation({ wristBehindBody: 0.55 }),
+  observation({ wristAcrossBody: 0.8, wristHeight: 0.1 }),
+];
+
 describe("deterministic shadow tennis analysis", () => {
   it("classifies every supported ordered phase", () => {
     expect(serve.map((entry) => classifyTennisPhase(entry, "shadow-serve"))).toEqual(
@@ -40,6 +55,12 @@ describe("deterministic shadow tennis analysis", () => {
     );
     expect(forehand.map((entry) => classifyTennisPhase(entry, "shadow-forehand"))).toEqual(
       PHASES["shadow-forehand"],
+    );
+    expect(backhand.map((entry) => classifyTennisPhase(entry, "shadow-backhand"))).toEqual(
+      PHASES["shadow-backhand"],
+    );
+    expect(volley.map((entry) => classifyTennisPhase(entry, "shadow-volley"))).toEqual(
+      PHASES["shadow-volley"],
     );
   });
 

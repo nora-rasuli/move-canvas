@@ -29,8 +29,15 @@ export const danceTimelineSchema = z.object({
 });
 export type DanceTimeline = z.infer<typeof danceTimelineSchema>;
 
-export const tennisDrillSchema = z.enum(["shadow-serve", "shadow-forehand"]);
+export const tennisDrillSchema = z.enum([
+  "shadow-serve",
+  "shadow-forehand",
+  "shadow-backhand",
+  "shadow-volley",
+]);
 export type TennisDrill = z.infer<typeof tennisDrillSchema>;
+export const movementFocusSchema = z.enum(["salsa", "hip-hop", "contemporary", "yoga-mobility"]);
+export type MovementFocus = z.infer<typeof movementFocusSchema>;
 export const handednessSchema = z.enum(["left", "right"]);
 export type Handedness = z.infer<typeof handednessSchema>;
 
@@ -41,6 +48,7 @@ export const coachSessionSchema = z.object({
   createdAt: z.string(),
   status: z.enum(["setup", "ready", "running", "paused", "finished"]),
   clipLabel: z.string().max(120).optional(),
+  movementFocus: movementFocusSchema.optional(),
   drill: tennisDrillSchema.optional(),
   handedness: handednessSchema.optional(),
 });

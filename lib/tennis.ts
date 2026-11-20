@@ -30,6 +30,8 @@ export type TennisRep = {
 export const PHASES: Record<TennisDrill, TennisPhase[]> = {
   "shadow-serve": ["ready", "trophy", "reach-proxy", "follow-through"],
   "shadow-forehand": ["ready", "unit-turn", "load", "contact-zone-proxy", "finish"],
+  "shadow-backhand": ["ready", "unit-turn", "load", "contact-zone-proxy", "finish"],
+  "shadow-volley": ["ready", "unit-turn", "contact-zone-proxy", "finish"],
 };
 
 export function observeTennisPose(
@@ -72,6 +74,27 @@ export function classifyTennisPhase(
     if (observation.wristHeight > thresholds.serveReach) return "reach-proxy";
     if (observation.wristHeight > 0.35 && observation.wristBehindBody > 0.15) return "trophy";
     if (Math.abs(observation.wristBehindBody) < 0.45 && observation.wristHeight < 0.35)
+      return "ready";
+    return null;
+  }
+  if (drill === "shadow-backhand") {
+    if (observation.wristAcrossBody < -0.65 && observation.wristHeight > -0.2) return "finish";
+    if (observation.wristBehindBody > 0.55 && Math.abs(observation.wristHeight) < 0.7)
+      return "contact-zone-proxy";
+    if (observation.kneeLoad > thresholds.forehandLoad && observation.wristBehindBody < -0.35)
+      return "load";
+    if (Math.abs(observation.shoulderTurn) > thresholds.forehandTurn) return "unit-turn";
+    if (Math.abs(observation.wristBehindBody) < 0.45 && Math.abs(observation.wristHeight) < 0.5)
+      return "ready";
+    return null;
+  }
+  if (drill === "shadow-volley") {
+    if (Math.abs(observation.wristAcrossBody) > 0.6 && observation.wristHeight > -0.35)
+      return "finish";
+    if (Math.abs(observation.wristBehindBody) > 0.45 && Math.abs(observation.wristHeight) < 0.65)
+      return "contact-zone-proxy";
+    if (Math.abs(observation.shoulderTurn) > thresholds.forehandTurn) return "unit-turn";
+    if (Math.abs(observation.wristBehindBody) < 0.35 && Math.abs(observation.wristHeight) < 0.5)
       return "ready";
     return null;
   }
@@ -164,11 +187,11 @@ function observationIssues(observation: TennisObservation, drill: TennisDrill, p
   if (drill === "shadow-serve" && phase === "trophy" && observation.wristHeight < 0.6)
     issues.push("serve-trophy-height");
   if (
-    drill === "shadow-forehand" &&
+    (drill === "shadow-forehand" || drill === "shadow-backhand") &&
     phase === "unit-turn" &&
     Math.abs(observation.shoulderTurn) < 0.25
   )
-    issues.push("forehand-turn-range");
+    issues.push(`${drill === "shadow-backhand" ? "backhand" : "forehand"}-turn-range`);
   if (phase === "reach-proxy" && observation.wristHeight < 1.5) issues.push("serve-reach-range");
   return issues;
 }
@@ -178,6 +201,8 @@ function issueCopy(code: string) {
     return "In repeated visible reps, pause with the hand clearly above shoulder level in the trophy phase.";
   if (code === "serve-reach-range")
     return "In repeated visible reps, extend the shadow reach higher before follow-through.";
+  if (code === "backhand-turn-range")
+    return "In repeated visible reps, show a clearer shoulder turn before the backhand moves forward.";
   return "In repeated visible reps, show a clearer shoulder turn before the shadow swing moves forward.";
 }
 

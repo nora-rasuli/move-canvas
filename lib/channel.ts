@@ -37,6 +37,22 @@ const gamePhaseSchema = z.enum(["ready", "playing", "paused", "finished"]);
 const coachModeSchema = z.enum(["dance-coach", "tennis-coach"]);
 const coachCameraStateSchema = z.enum(["idle", "requesting", "framing", "ready", "lost", "error"]);
 const sentAtSchema = z.number().finite().nonnegative();
+const coachVideoSignalSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.enum(["offer", "answer"]),
+      sdp: z.string().min(1).max(120_000),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("ice"),
+      candidate: z.string().min(1).max(8_000),
+      sdpMid: z.string().max(200).nullable(),
+      sdpMLineIndex: z.number().int().min(0).max(100).nullable(),
+    })
+    .strict(),
+]);
 
 export const sessionMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("controller-ready"), player: playerSchema }).strict(),
@@ -87,6 +103,14 @@ export const sessionMessageSchema = z.discriminatedUnion("type", [
     })
     .strict(),
   z.object({ type: z.literal("coach-display-ready"), mode: coachModeSchema }).strict(),
+  z
+    .object({
+      type: z.literal("coach-video-signal"),
+      mode: coachModeSchema,
+      from: z.enum(["phone", "display"]),
+      signal: coachVideoSignalSchema,
+    })
+    .strict(),
   z.object({ type: z.literal("coach-session"), session: coachSessionSchema }).strict(),
   z.object({ type: z.literal("dance-reference"), timeline: danceTimelineSchema }).strict(),
   z

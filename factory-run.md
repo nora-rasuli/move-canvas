@@ -29,16 +29,16 @@
 | 2026-11-20 | 04 Package 1.2 audit | PASS — no in-scope P0/P1 findings | 05 Publish | `audit-report-1.2.md`; RLS, server-owned like counts, truthful YouTube boundary, accessibility and recovery reviewed |
 | 2026-11-20 | 05 Package 1.2 publish | PASS — public production release | 06 Live Product Review | `publish-report-1.2.md`; deployment `dpl_FuCeBn1k9hGuLcVRbMBje6nLpRDr`; source `8f057f5` |
 | 2026-11-20 | 06 Package 1.2 live review | PASS for tested public flows | Portfolio presentation and physical device evidence | Canonical URL 200; real library empty state; YouTube API returned 8 results; no browser errors |
+| 2026-11-20 | 02 Build Package 1.3 | AUTOMATED CANDIDATE PASS | Immutable candidate and Stage 03 | Hands-free calibration, focused Dance/Tennis libraries, opt-in WebRTC TV self-view; 42 unit tests, production build, 12 browser scenarios |
 
 ## Active state
 
-Package 1.2 is released. It closes the Stage 06 readiness, fresh-input, and
-public-fixture findings and adds built-in references, truthful YouTube
-search/embed, local reference analysis, My Space, intentional publishing,
-likes, and public-game collection. The database migration and server-only
-YouTube configuration are applied; CI, Stage 03, Stage 04, Stage 05, and the
-tested Stage 06 live flows pass. The next evidence task is a physical TV plus
-multi-phone run. The next presentation task is synchronizing the public
-portfolio case study with Package 1.2. Stage 07 remains closed until a real
-post-launch observation window exists.
+Package 1.2 remains the public production release. Package 1.3 is the current
+verified local candidate: hands-free calibration, explicit practice libraries,
+and an opt-in peer-to-peer TV self-view pass the automated build gate. The next
+factory route is immutable commit, remote CI, Stage 03/04 review, a staged
+Production deployment, and live verification. A physical TV/phone run remains
+required evidence for device-specific usability and whether TURN fallback is
+needed. Stage 07 remains closed until a real post-launch observation window
+exists.
 
