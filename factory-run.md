@@ -25,15 +25,20 @@
 | 2026-11-20 | 02 Build live repair 1 | IN PROGRESS | Create immutable repair candidate; route to fresh Stage 03 | Controller/camera/calibration readiness, behaviorally distinct fallback, production fixture removal |
 | 2026-11-20 | 02 Build integrated handoff | SINGLE WORKER ACTIVE — duplicate factory-room worker stopped to avoid shared-checkout conflicts | Upstream worker integrates repair plus authorized reference/library expansion, runs full gate, and returns candidate | Built-in dance/tennis clips; official YouTube search/embed with no-frame-analysis boundary; reference-relative local/uploaded analysis; saved game library |
 | 2026-11-20 | 02 Build Package 1.2 candidate | AUTOMATED PASS — external configuration pending | Apply database migration and YouTube secret, then immutable Stage 03 candidate | 42 unit tests, production build, 11 Playwright scenarios; publish/like/My Space and paired readiness recovery pass |
+| 2026-11-20 | 03 Package 1.2 validation | PASS | 04 Audit | `validation-report-1.2.md`; candidate `8f057f5`; 42 tests, 11 browser scenarios, green CI |
+| 2026-11-20 | 04 Package 1.2 audit | PASS — no in-scope P0/P1 findings | 05 Publish | `audit-report-1.2.md`; RLS, server-owned like counts, truthful YouTube boundary, accessibility and recovery reviewed |
+| 2026-11-20 | 05 Package 1.2 publish | PASS — public production release | 06 Live Product Review | `publish-report-1.2.md`; deployment `dpl_FuCeBn1k9hGuLcVRbMBje6nLpRDr`; source `8f057f5` |
+| 2026-11-20 | 06 Package 1.2 live review | PASS for tested public flows | Portfolio presentation and physical device evidence | Canonical URL 200; real library empty state; YouTube API returned 8 results; no browser errors |
 
 ## Active state
 
-Package 1.2 has passed the complete local automated gate. It closes the Stage 06
-readiness, fresh-input, and public-fixture findings and adds built-in references,
-truthful YouTube search/embed, local reference analysis, My Space, intentional
-publishing, likes, and public-game collection. External release configuration is
-the remaining Stage 02 boundary: apply `supabase/community-library.sql` to the
-owner-controlled project and configure the server-only YouTube key. Then create
-an immutable candidate for fresh Stage 03 and Stage 04 verification. Stage 07
-remains closed.
+Package 1.2 is released. It closes the Stage 06 readiness, fresh-input, and
+public-fixture findings and adds built-in references, truthful YouTube
+search/embed, local reference analysis, My Space, intentional publishing,
+likes, and public-game collection. The database migration and server-only
+YouTube configuration are applied; CI, Stage 03, Stage 04, Stage 05, and the
+tested Stage 06 live flows pass. The next evidence task is a physical TV plus
+multi-phone run. The next presentation task is synchronizing the public
+portfolio case study with Package 1.2. Stage 07 remains closed until a real
+post-launch observation window exists.
 
