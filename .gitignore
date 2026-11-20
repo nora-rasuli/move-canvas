@@ -7,4 +7,5 @@ coverage
 .vercel
 test-results
 playwright-report
+*.tsbuildinfo
 .DS_Store
