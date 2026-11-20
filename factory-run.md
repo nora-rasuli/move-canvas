@@ -37,15 +37,14 @@
 | 2026-11-20 | 05 Package 1.3 portfolio presentation | PASS — case study synchronized and public | Physical TV/phone review | <https://nora-rasuli.github.io/work/move-canvas/> at portfolio commit `9b57459`; portfolio CI and Pages PASS |
 | 2026-11-20 | User Testing Lab intake | READY — simulated track only | Run MC-P01–MC-P08, then physical Nora device session | `user-testing/persona-matrix-1.3.md`, `user-testing/user-testing-plan-1.3.md`; no real-participant evidence yet |
 | 2026-11-20 | User Testing Lab simulated run | PASS — simulated track only after two P1 and one P2 correction loops | Physical MC-R01 phone/TV session | Eight session artifacts and `user-testing/user-testing-report-1.3.md`; production `ee81558` / `dpl_GULYNHsGE3KfWyVaj5AxTMzGM2Ds`; 48 unit and 16 browser tests; zero real participants |
-| 2026-11-20 | 02 Build scoring improvement | AUTOMATED CANDIDATE PASS | Publish exact candidate, then physical score calibration | Transparent 0–100 Dance/Tennis score, disclosed four-part formula, browser-local scoped personal best; 51 unit and 16 browser tests |
+| 2026-11-20 | 02–05 scoring improvement | PASS — exact verified candidate public | Physical score calibration | Transparent 0–100 Dance/Tennis score, disclosed four-part formula, browser-local scoped personal best; commit `17dac88`; deployment `dpl_GWvtCCFmr6bi3rKCQn8818SxjyCb`; green CI `44835146229`; 51 unit and 16 browser tests |
 
 ## Active state
 
-Package 1.3 plus User Testing corrections is public at commit `ee81558`. A
-transparent coaching-score improvement has passed the complete automated gate
-and is awaiting exact-candidate publication. Eight simulated configurations
-passed after two P1 and one P2 correction loops. This is not real-user
-evidence. The next route after publication is Nora's physical TV/phone review:
+Package 1.3, User Testing corrections, and the transparent coaching-score
+improvement are public at commit `17dac88`. Eight simulated configurations
+passed after two P1 and one P2 correction loops. This is not real-user evidence.
+The next route is Nora's physical TV/phone review:
 hands-free seated/standing calibration, visible/audible cues, live player view,
 stop-sharing behavior, score fairness, and restrictive-network/TURN need.
 Stage 07 remains closed until real post-launch observation exists.

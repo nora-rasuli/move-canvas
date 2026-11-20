@@ -21,7 +21,12 @@ Players can keep a game privately in **My Space** or intentionally publish its r
 
 ## Current release boundary
 
-Package 1.1 is deployed from verified commit `5f94a5e946c12434a05908179a0193ee2804e3b2`. The production gate covers all declared routes, private-room authorization and isolation, deterministic analysis, keyboard paths, reduced motion, serious/critical axe checks, unit tests, production build, the live Blueprint API, and multi-context Playwright flows.
+Package 1.3 plus the transparent scoring improvement is deployed from verified
+commit `17dac88193136169a273f433e00782d0178bfd17`. The production gate covers all
+declared routes, private-room authorization and isolation, deterministic
+analysis and scoring, keyboard paths, reduced motion, serious/critical axe
+checks, unit tests, production build, the live Blueprint API, and multi-context
+Playwright flows.
 
 The repository does **not** claim physical-device validation, measured performance, WCAG conformance, coaching effectiveness, or medical/biomechanical outcomes. A fresh physical phone/camera/TV matrix, real reference-media extraction profile, assistive-technology review, and network latency/privacy capture remain evidence debt. See [`project-package.md`](project-package.md), [`validation-report-1.1-recheck-2.md`](validation-report-1.1-recheck-2.md), and [`publish-report-1.1.md`](publish-report-1.1.md).
 
