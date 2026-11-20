@@ -2,18 +2,22 @@
 
 - **Opportunity:** OPP-2026-014
 - **Working slug:** `move-canvas`
-- **Current stage:** 02 — Build (Package 1.1 Stage 03 recheck 1 repair)
+- **Current stage:** 06 — Live Product Review
 - **Package:** 1.1 frozen
 - **Originality:** Pass — crowded but differentiated
 - **Preflight:** Pass with strict privacy/claim boundaries and owned external actions
 - **Stage 01 verification:** PASS for 1.0; PASS for additive 1.1
-- **Public state:** Not yet created or deployed
-- **Functional gate:** Recheck 1 paused-stop and display-reload blockers repaired; full automated gate passes; physical-device evidence pending
-- **Next action:** Route the new immutable repair candidate to a fresh Stage 03
-  verifier for the exact recheck scope in `build-report.md`, followed
-  by real clip, phone camera, physical Shadow Serve/Forehand, privacy, latency,
-  recovery, and manual accessibility evidence.
-- **Next verifier:** Fresh Stage 03 after Build evidence is complete
+- **Public state:** Production at <https://move-canvas.vercel.app>; public source
+  at <https://github.com/nora-rasuli/move-canvas>; portfolio case study at
+  <https://nora-rasuli.github.io/work/move-canvas/>
+- **Functional gate:** Stage 05 production verification passed against deployment
+  `dpl_J4XHhVgS1f5qoDmVAQNqqragxGG1` and source
+  `5f94a5e946c12434a05908179a0193ee2804e3b2`; independent Stage 06 live-user
+  review is active
+- **Next action:** Complete the fresh Stage 06 production review, retain its
+  exact gate decision and prioritized findings, and route any P0/P1 to its
+  owning earlier stage before opening Stage 07.
+- **Next verifier:** Fresh Stage 06 — Live Product Review
 
 ## Mandatory stop conditions
 
@@ -24,13 +28,14 @@ camera or reference media; raw user-landmark transmission; coaching scores from
 low-confidence evidence; generative coaching decisions; or health,
 injury-prevention, professional-coaching, biomechanics, ball, or racket claims.
 
-## Candidate boundary
+## Evidence boundary
 
-The automated fixture suite is evidence for deterministic rules, semantic
-transport, paused safe-stop, symmetric reload recovery, shared elapsed-offset/
-media control, session-local calibration, countdown accessibility, UI, and
-recovery controls only. It is not real-camera,
-real-video, physical-device, coaching-effectiveness, or population-accuracy
-evidence. Do not deploy or advance the project from Stage 02 until Stage 03
-independently reproduces the repair and physical evidence in `build-report.md`.
+Production verification supports the published browser routes, structured
+fallback API, private-room isolation, semantic transport, deterministic rules,
+recovery controls, and covered automated accessibility checks. It does not
+establish physical-device, real-camera, real-video, coaching-quality or
+effectiveness, measured latency, manual assistive-technology, CAPTCHA,
+anonymous-user retention cleanup, membership-ACL, or population-accuracy
+claims. Those limitations remain explicit during Stage 06 and later evidence
+work.
 
