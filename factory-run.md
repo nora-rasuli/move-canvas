@@ -23,16 +23,17 @@
 | 2026-11-20 | 05 Portfolio presentation | PASS — public case study, GitHub profile feature, and repository pin verified | 06 Live Product Review | <https://nora-rasuli.github.io/work/move-canvas/> at portfolio commit `d04eb2e14989a2255c0cea509a465e27f867cb7a` |
 | 2026-11-20 | 06 Live Product Review | REWORK — two P1 production failures and adjacent P2 fixture-surface cleanup | Return bounded package to 02 Build | `live-product-review-1.1.md`; `MC-LIVE-P1-01`, `MC-LIVE-P1-02`, `MC-LIVE-P2-01` |
 | 2026-11-20 | 02 Build live repair 1 | IN PROGRESS | Create immutable repair candidate; route to fresh Stage 03 | Controller/camera/calibration readiness, behaviorally distinct fallback, production fixture removal |
+| 2026-11-20 | 02 Build integrated handoff | SINGLE WORKER ACTIVE — duplicate factory-room worker stopped to avoid shared-checkout conflicts | Upstream worker integrates repair plus authorized reference/library expansion, runs full gate, and returns candidate | Built-in dance/tennis clips; official YouTube search/embed with no-frame-analysis boundary; reference-relative local/uploaded analysis; saved game library |
 
 ## Active state
 
-Stage 02 bounded production repair against frozen Package 1.1. Stage 06 returned
-`REWORK` because the display can treat its own relay subscription as controller
-readiness and start an uncalibrated coaching session, while the public
-no-provider Motion Game fallback changes mostly cosmetic text instead of a
-meaningful playable variable. The adjacent P2 cleanup removes developer fixture
-controls from the production UX without removing deterministic test coverage.
-After an immutable repair candidate is created, a fresh Stage 03 verifier must
-reproduce both former failures as negative tests and recheck the affected
-readiness and fresh-input gates. Stage 07 remains closed.
+Stage 02 integrated production repair and user-authorized scope expansion. The
+single upstream implementation worker owns the shared checkout; the duplicate
+factory-room worker was interrupted before it could commit product changes.
+The integrated candidate must close the Stage 06 readiness, fresh-input, and
+public-fixture findings while adding the authorized built-in references,
+official YouTube search/embed with a truthful no-frame-analysis boundary,
+reference-relative analysis for eligible built-in/uploaded clips, and a saved
+game library. It must return updated acceptance evidence and an immutable
+candidate for fresh Stage 03 and Stage 04 verification. Stage 07 remains closed.
 

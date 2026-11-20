@@ -2,7 +2,7 @@
 
 - **Opportunity:** OPP-2026-014
 - **Working slug:** `move-canvas`
-- **Current stage:** 02 — Build (Stage 06 bounded production repair)
+- **Current stage:** 02 — Build (integrated production repair and authorized scope expansion)
 - **Package:** 1.1 frozen
 - **Originality:** Pass — crowded but differentiated
 - **Preflight:** Pass with strict privacy/claim boundaries and owned external actions
@@ -10,13 +10,14 @@
 - **Public state:** Production at <https://move-canvas.vercel.app>; public source
   at <https://github.com/nora-rasuli/move-canvas>; portfolio case study at
   <https://nora-rasuli.github.io/work/move-canvas/>
-- **Functional gate:** Stage 06 returned `REWORK` on `MC-LIVE-P1-01`
-  controller/camera/calibration readiness and `MC-LIVE-P1-02` behaviorally
-  distinct fresh-input fallback; adjacent `MC-LIVE-P2-01` removes public
-  fixture controls
-- **Next action:** Complete only the bounded Stage 02 repair in
-  `live-product-review-1.1.md`, create an immutable candidate, and route it to
-  fresh Stage 03 verification.
+- **Functional gate:** Close Stage 06 findings `MC-LIVE-P1-01`,
+  `MC-LIVE-P1-02`, and `MC-LIVE-P2-01` while the single upstream Stage 02
+  worker integrates the user-authorized built-in dance/tennis references,
+  official YouTube search/embed boundary, reference-relative analysis, and
+  saved game library
+- **Next action:** Allow the single upstream worker to preserve the readiness
+  repair, complete the expanded scope, run the full gate, and return one
+  immutable candidate and updated acceptance evidence to the factory runner.
 - **Next verifier:** Fresh Stage 03 after the bounded repair candidate is complete
 
 ## Mandatory stop conditions
