@@ -59,13 +59,14 @@ export async function extractReferenceTimeline(
   durationMs: number,
   orientation: DanceOrientation,
   onProgress?: (progress: number) => void,
+  rejectMultiplePeople = true,
 ): Promise<DanceTimeline> {
   const { FilesetResolver, PoseLandmarker } = await import("@mediapipe/tasks-vision");
   const vision = await FilesetResolver.forVisionTasks(WASM_ROOT);
   const landmarker = await PoseLandmarker.createFromOptions(vision, {
     baseOptions: { modelAssetPath: MODEL, delegate: "GPU" },
     runningMode: "VIDEO",
-    numPoses: 2,
+    numPoses: rejectMultiplePeople ? 2 : 1,
     minPoseDetectionConfidence: 0.55,
     minPosePresenceConfidence: 0.55,
     minTrackingConfidence: 0.55,
@@ -85,13 +86,16 @@ export async function extractReferenceTimeline(
       }
       const result = landmarker.detectForVideo(video, at);
       sampledFrames += 1;
-      if (result.landmarks.length > 1) framesWithMultiplePeople += 1;
+      if (rejectMultiplePeople && result.landmarks.length > 1) framesWithMultiplePeople += 1;
       const landmarks = result.landmarks[0] as Landmark[] | undefined;
       if (landmarks) frames.push({ capturedAt: at, landmarks });
       if (at % 1_000 === 0) onProgress?.(Math.min(1, at / durationMs));
     }
     onProgress?.(1);
-    if (hasPersistentMultiplePeople(framesWithMultiplePeople, sampledFrames))
+    if (
+      rejectMultiplePeople &&
+      hasPersistentMultiplePeople(framesWithMultiplePeople, sampledFrames)
+    )
       throw new Error("The reference must show one clearly visible person at a time.");
     return buildDanceTimeline(frames, durationMs, orientation);
   } finally {

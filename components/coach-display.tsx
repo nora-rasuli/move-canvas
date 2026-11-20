@@ -353,7 +353,11 @@ export function CoachDisplay({
     applyControlRef.current = applyControlMessage;
   });
 
-  async function chooseReference(file: File | undefined, label = file?.name ?? "") {
+  async function chooseReference(
+    file: File | undefined,
+    label = file?.name ?? "",
+    rejectMultiplePeople = true,
+  ) {
     if (!file || !videoRef.current) return;
     setError("");
     setExtraction("loading");
@@ -371,6 +375,7 @@ export function CoachDisplay({
         loaded.durationMs,
         orientation,
         setProgress,
+        rejectMultiplePeople,
       );
       videoRef.current.currentTime = 0;
       referenceDisposeRef.current = loaded.dispose;
@@ -393,7 +398,11 @@ export function CoachDisplay({
       const response = await fetch(clip.src);
       if (!response.ok) throw new Error("The built-in reference could not be loaded.");
       const blob = await response.blob();
-      await chooseReference(new File([blob], `${clip.id}.mp4`, { type: "video/mp4" }), clip.label);
+      await chooseReference(
+        new File([blob], `${clip.id}.mp4`, { type: "video/mp4" }),
+        clip.label,
+        false,
+      );
     } catch (caught) {
       setExtraction("error");
       setError(caught instanceof Error ? caught.message : "The built-in clip could not be loaded.");
