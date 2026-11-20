@@ -52,6 +52,7 @@ import { CONTROLLER_HEARTBEAT_INTERVAL_MS } from "@/lib/coach-readiness";
 
 type CoachMode = "dance-coach" | "tennis-coach";
 type CameraState = "idle" | "requesting" | "framing" | "ready" | "lost" | "error";
+type CalibrationCaptureStage = "neutral" | "range";
 
 export function CoachController({ testHarness = false }: { testHarness?: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -64,6 +65,11 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
   const clockRef = useRef(createCoachClock());
   const handledControlsRef = useRef(new Set<string>());
   const countdownTimerRef = useRef<number | null>(null);
+  const calibrationCountdownRef = useRef<number | null>(null);
+  const pendingCalibrationRef = useRef<{
+    stage: CalibrationCaptureStage;
+    captureAfter: number;
+  } | null>(null);
   const applyControlRef = useRef<(control: CoachControl) => void>(() => undefined);
   const lastSentAtRef = useRef(0);
   const danceEventsRef = useRef<DanceFeedbackEvent[]>([]);
@@ -88,6 +94,10 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
   const [consent, setConsent] = useState(false);
   const [neutralSample, setNeutralSample] = useState<CalibrationSample | null>(null);
   const [calibration, setCalibration] = useState<CoachCalibrationRecord | null>(null);
+  const [calibrationCapture, setCalibrationCapture] = useState<{
+    stage: CalibrationCaptureStage;
+    secondsRemaining: number;
+  } | null>(null);
   const [running, setRunning] = useState(false);
   const [clock, setClock] = useState(createCoachClock);
   const [clockNow, setClockNow] = useState(0);
@@ -210,6 +220,8 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
       poseRef.current?.stop();
       streamRef.current?.getTracks().forEach((track) => track.stop());
       if (countdownTimerRef.current !== null) window.clearTimeout(countdownTimerRef.current);
+      if (calibrationCountdownRef.current !== null)
+        window.clearInterval(calibrationCountdownRef.current);
       void connectionRef.current?.close();
       connectionRef.current = null;
     };
@@ -304,6 +316,72 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
     }
   }
 
+  function speakCalibrationCue(message: string) {
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(new SpeechSynthesisUtterance(message));
+  }
+
+  function clearPendingCalibration() {
+    pendingCalibrationRef.current = null;
+    if (calibrationCountdownRef.current !== null) {
+      window.clearInterval(calibrationCountdownRef.current);
+      calibrationCountdownRef.current = null;
+    }
+    setCalibrationCapture(null);
+  }
+
+  function armCalibrationCapture(stage: CalibrationCaptureStage) {
+    if (!sessionRef.current) {
+      setLatestCue("Wait for the display to finish creating the practice session.");
+      return;
+    }
+    if (!streamRef.current || camera === "idle" || camera === "requesting" || camera === "error") {
+      setLatestCue("Enable the camera before starting calibration.");
+      return;
+    }
+    if (stage === "range" && !neutralSample) {
+      setLatestCue("Capture the neutral stance before the comfortable range.");
+      return;
+    }
+    if (pendingCalibrationRef.current?.stage === stage) {
+      clearPendingCalibration();
+      setLatestCue("Automatic capture canceled.");
+      return;
+    }
+
+    clearPendingCalibration();
+    const captureAfter = readCoachNow() + 5_000;
+    pendingCalibrationRef.current = { stage, captureAfter };
+    setCalibrationCapture({ stage, secondsRemaining: 5 });
+    const setupCue =
+      stage === "neutral"
+        ? "Neutral capture armed. Step back, place your full body in frame, and stand naturally."
+        : "Range capture armed. Step back and hold your comfortable reach and knee bend.";
+    setLatestCue(`${setupCue} Automatic capture starts in 5 seconds.`);
+    speakCalibrationCue(`${setupCue} Capturing in five seconds.`);
+
+    calibrationCountdownRef.current = window.setInterval(() => {
+      const pending = pendingCalibrationRef.current;
+      if (!pending) return;
+      const secondsRemaining = Math.max(
+        0,
+        Math.ceil((pending.captureAfter - readCoachNow()) / 1_000),
+      );
+      setCalibrationCapture({ stage: pending.stage, secondsRemaining });
+      if (secondsRemaining === 0 && calibrationCountdownRef.current !== null) {
+        window.clearInterval(calibrationCountdownRef.current);
+        calibrationCountdownRef.current = null;
+        const holdCue =
+          pending.stage === "neutral"
+            ? "Hold your natural stance. Waiting for full-body framing."
+            : "Hold your comfortable range. Waiting for full-body framing.";
+        setLatestCue(holdCue);
+        speakCalibrationCue(holdCue);
+      }
+    }, 200);
+  }
+
   function handlePoseFrame(frame: PoseFrame | null) {
     latestFrameRef.current = frame;
     const bodyVisible = Boolean(frame && hasTrackableBody(frame.landmarks));
@@ -318,6 +396,15 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
       }
       setCamera("lost");
       return;
+    }
+
+    const pendingCalibration = pendingCalibrationRef.current;
+    if (pendingCalibration && frame && readCoachNow() >= pendingCalibration.captureAfter) {
+      const sample = captureCalibrationSample(frame.landmarks);
+      if (sample) {
+        if (pendingCalibration.stage === "neutral") completeNeutralCapture(sample);
+        else completeRangeCapture(sample);
+      }
     }
     setCamera(calibrationRef.current ? "ready" : "framing");
     const now = readCoachNow();
@@ -369,27 +456,22 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
     if (count >= 3) endRun();
   }
 
-  function captureNeutral() {
-    const sample = latestFrameRef.current
-      ? captureCalibrationSample(latestFrameRef.current.landmarks)
-      : null;
-    if (!framed || !sample)
-      return setLatestCue("Neutral capture needs a clearly visible full body.");
+  function completeNeutralCapture(sample: CalibrationSample) {
+    clearPendingCalibration();
     setNeutralSample(sample);
     setLatestCue(
-      "Neutral sample captured. Move to a comfortable reach and knee bend, then capture range.",
+      "Neutral stance captured automatically. Return to the phone and arm comfortable range.",
     );
+    speakCalibrationCue("Neutral stance captured. Return to the phone and arm comfortable range.");
   }
 
-  function captureRange() {
+  function completeRangeCapture(sample: CalibrationSample) {
     const activeSession = sessionRef.current;
-    const sample = latestFrameRef.current
-      ? captureCalibrationSample(latestFrameRef.current.landmarks)
-      : null;
     if (!activeSession || !neutralSample || !sample)
       return setLatestCue(
         "Range capture needs the neutral sample and a clearly visible full body.",
       );
+    clearPendingCalibration();
     const record = createCalibrationRecord(activeSession.id, neutralSample, sample);
     const stored = writeBrowserStorage(
       "session",
@@ -406,8 +488,9 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
     setCalibration(record);
     setCamera("ready");
     setLatestCue(
-      "Comfortable range captured for this session. The local calibration now adjusts supported thresholds.",
+      "Comfortable range captured automatically. The local calibration now adjusts supported thresholds.",
     );
+    speakCalibrationCue("Comfortable range captured. Calibration is complete.");
   }
 
   function resetRun() {
@@ -658,18 +741,34 @@ export function CoachController({ testHarness = false }: { testHarness?: boolean
           <button
             className="button button-ink"
             type="button"
-            disabled={!framed || !session}
-            onClick={captureNeutral}
+            disabled={
+              !session || camera === "idle" || camera === "requesting" || camera === "error"
+            }
+            onClick={() => armCalibrationCapture("neutral")}
           >
-            Capture neutral stance
+            {calibrationCapture?.stage === "neutral"
+              ? calibrationCapture.secondsRemaining > 0
+                ? `Neutral capture in ${calibrationCapture.secondsRemaining}`
+                : "Cancel neutral capture"
+              : "Arm neutral capture"}
           </button>
           <button
             className="button button-ink"
             type="button"
-            disabled={!neutralSample || !framed || !session}
-            onClick={captureRange}
+            disabled={
+              !neutralSample ||
+              !session ||
+              camera === "idle" ||
+              camera === "requesting" ||
+              camera === "error"
+            }
+            onClick={() => armCalibrationCapture("range")}
           >
-            Capture comfortable range
+            {calibrationCapture?.stage === "range"
+              ? calibrationCapture.secondsRemaining > 0
+                ? `Range capture in ${calibrationCapture.secondsRemaining}`
+                : "Cancel range capture"
+              : "Arm comfortable range"}
           </button>
         </div>
         <p className="coach-status" aria-live="polite" role="status">
