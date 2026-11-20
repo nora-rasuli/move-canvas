@@ -1,4 +1,5 @@
 import { Creator } from "@/components/creator";
+import Link from "next/link";
 
 export default function Home() {
   return (
@@ -8,6 +9,7 @@ export default function Home() {
           <span aria-hidden="true">M</span>
           Move Canvas
         </a>
+        <Link className="nav-link" href="/coach">Choose a mode</Link>
         <a className="nav-link" href="#how-it-works">How it works</a>
       </nav>
 
@@ -33,6 +35,16 @@ export default function Home() {
           <div className="target target-one" aria-hidden="true">✦</div>
           <div className="target target-two" aria-hidden="true">●</div>
           <p className="art-note">No controller.<br />No fixed catalog.</p>
+        </div>
+      </section>
+
+      <section className="home-modes" aria-labelledby="home-modes-title">
+        <p className="eyebrow">THREE WAYS TO MOVE</p>
+        <h2 id="home-modes-title">Keep the game. Add focused practice.</h2>
+        <div className="home-mode-links">
+          <a href="#create"><strong>Motion Game</strong><span>Create and play a private motion game.</span></a>
+          <Link href="/coach/dance"><strong>Dance Coach</strong><span>Compare with a local reference clip.</span></Link>
+          <Link href="/coach/tennis"><strong>Tennis Coach</strong><span>Practice serve and forehand shadow phases.</span></Link>
         </div>
       </section>
 

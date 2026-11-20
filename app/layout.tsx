@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./styles.css";
 
 export const metadata: Metadata = {
-  title: "Move Canvas — Create a game. Move to play.",
+  title: "Move Canvas — Play, dance, and practice in motion.",
   description:
-    "Turn an idea into a personal motion game and use your phone as the camera controller.",
+    "Create a motion game or use private, deterministic 2D pose cues for dance-reference and shadow-tennis practice.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
