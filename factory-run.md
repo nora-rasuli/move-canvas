@@ -32,14 +32,16 @@
 | 2026-11-20 | 02 Build Package 1.3 | AUTOMATED CANDIDATE PASS | Immutable candidate and Stage 03 | Hands-free calibration, focused Dance/Tennis libraries, opt-in WebRTC TV self-view; 42 unit tests, production build, 12 browser scenarios |
 | 2026-11-20 | 03 Package 1.3 validation | PASS | 04 Audit | `validation-report-1.3.md`; exact candidate `8984ce9`; green CI run `44819267946` |
 | 2026-11-20 | 04 Package 1.3 audit | PASS for staged Production | 05 Publish | `audit-report-1.3.md`; explicit consent, bounded signaling, no media persistence, truthful STUN/TURN limits |
+| 2026-11-20 | 05 Package 1.3 publish | PASS — exact staged deployment promoted | 06 Live Product Review | `publish-report-1.3.md`; deployment `dpl_6xC4NmGv7WpZeJxHJV4nPUt7zaM6`; canonical routes 200 |
+| 2026-11-20 | 06 Package 1.3 automated live review | PASS for public browser/API scope | Physical TV/phone review | Four Dance/movement and four Tennis choices rendered; controller consent/hands-free controls rendered; YouTube returned 8; zero recent production errors |
 
 ## Active state
 
-Package 1.2 remains the public production release. Package 1.3 has passed its
-local gate, remote CI, Stage 03 validation, and Stage 04 privacy/product audit.
-The next factory route is a Production-scoped staged deployment, verification,
-promotion of that exact deployment, and Stage 06 live review. A physical
-TV/phone run remains required evidence for device-specific usability and
-whether TURN fallback is needed. Stage 07 remains closed until a real
-post-launch observation window exists.
+Package 1.3 is the public production release. It has passed its local gate,
+remote CI, Stage 03 validation, Stage 04 privacy/product audit, staged
+Production procedure, promotion, and automated Stage 06 public checks. The
+next route is Nora's physical TV/phone review: hands-free calibration, audible
+cues, live player view, stop-sharing behavior, and restrictive-network/TURN
+need. The portfolio presentation must now be synchronized. Stage 07 remains
+closed until a real post-launch observation window exists.
 
