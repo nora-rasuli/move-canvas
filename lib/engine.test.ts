@@ -12,7 +12,11 @@ describe("game engine", () => {
     const frozen = reduceGame(state, { type: "tick", deltaMs: 5000 }, blueprint);
     expect(frozen.elapsedMs).toBe(0);
     state = reduceGame(frozen, { type: "resume" }, blueprint);
-    state = reduceGame(state, { type: "tick", deltaMs: 60_000 }, blueprint);
+    state = reduceGame(
+      state,
+      { type: "tick", deltaMs: blueprint.durationSeconds * 1_000 },
+      blueprint,
+    );
     expect(state.score).toBe(10);
     expect(state.phase).toBe("finished");
   });

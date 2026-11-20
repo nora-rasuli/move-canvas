@@ -72,7 +72,7 @@ test("dance fixture verifies paired semantic flow without claiming real-device e
   await installMediaAudit(display);
   await display.goto("/coach/dance");
   await display.getByText("Deterministic verification controls").click();
-  await expect(display.getByText(/not real-clip or real-device evidence/i)).toBeVisible();
+  await expect(display.getByText(/test-only timeline never appears in production/i)).toBeVisible();
   await display.getByRole("button", { name: "Load landmark fixture" }).click();
   await expect(display.getByText(/101 confidence-qualified samples/i)).toBeVisible();
 
@@ -110,10 +110,15 @@ test("dance fixture verifies paired semantic flow without claiming real-device e
   await phone.reload();
   await expect(phone.getByText("Display connected")).toBeVisible({ timeout: 10_000 });
   await expect(phone.getByText("Session calibration record")).toBeVisible();
-  await expect(phone.getByRole("button", { name: "Resume", exact: true })).toBeVisible();
+  await expect(phone.getByRole("button", { name: "Resume", exact: true })).toBeDisabled();
   await phone.getByText("Deterministic verification controls").click();
+  await phone.getByRole("button", { name: "Use fixture framing" }).click();
+  await expect(display.getByText("Phone ready")).toBeVisible();
+  await expect(phone.getByRole("button", { name: "Resume", exact: true })).toBeEnabled();
   await phone.getByRole("button", { name: "Resume", exact: true }).click();
-  await expect.poll(async () => (await readMediaAudit(display)).playCount).toBe(3);
+  const resumedPosition = await readDisplayElapsed(display);
+  await display.waitForTimeout(250);
+  expect(await readDisplayElapsed(display)).toBeGreaterThan(resumedPosition);
   await phone.getByRole("button", { name: "Simulate tracking loss" }).click();
   await expect.poll(async () => (await readMediaAudit(display)).pauseCount).toBe(3);
   await phone.getByRole("button", { name: "Resume", exact: true }).click();
@@ -288,6 +293,8 @@ for (const drill of ["Shadow Serve", "Shadow Forehand"] as const) {
     const display = await displayContext.newPage();
     await display.goto("/coach/tennis");
     await display.getByLabel(drill).check();
+    await display.getByText("Deterministic verification controls").click();
+    await display.getByRole("button", { name: "Load landmark fixture" }).click();
     const controllerHref = await display
       .getByRole("link", { name: "Open phone controller" })
       .getAttribute("href");
@@ -300,10 +307,9 @@ for (const drill of ["Shadow Serve", "Shadow Forehand"] as const) {
     await expect(phone.getByText("Session calibration record")).toBeVisible();
 
     if (drill === "Shadow Serve") {
-      await display.getByRole("button", { name: "Start practice" }).focus();
-      await display.getByRole("button", { name: "Start practice" }).press("Enter");
-      await expect(display.getByText("Tennis practice starts in 3", { exact: true })).toBeVisible();
-      await expect(phone.getByText("Tennis practice starts in 3", { exact: true })).toBeVisible();
+      await display.getByRole("button", { name: "Start practice" }).click();
+      await expect(display.getByText(/Tennis practice starts in 3/)).toBeVisible();
+      await expect(phone.getByText(/Tennis practice starts in 3/)).toBeVisible();
       await phone.getByRole("button", { name: "Cancel countdown" }).focus();
       await phone.getByRole("button", { name: "Cancel countdown" }).press("Space");
       await expect(display.getByRole("button", { name: "Start practice" })).toBeVisible();

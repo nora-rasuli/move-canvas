@@ -24,16 +24,16 @@
 | 2026-11-20 | 06 Live Product Review | REWORK — two P1 production failures and adjacent P2 fixture-surface cleanup | Return bounded package to 02 Build | `live-product-review-1.1.md`; `MC-LIVE-P1-01`, `MC-LIVE-P1-02`, `MC-LIVE-P2-01` |
 | 2026-11-20 | 02 Build live repair 1 | IN PROGRESS | Create immutable repair candidate; route to fresh Stage 03 | Controller/camera/calibration readiness, behaviorally distinct fallback, production fixture removal |
 | 2026-11-20 | 02 Build integrated handoff | SINGLE WORKER ACTIVE — duplicate factory-room worker stopped to avoid shared-checkout conflicts | Upstream worker integrates repair plus authorized reference/library expansion, runs full gate, and returns candidate | Built-in dance/tennis clips; official YouTube search/embed with no-frame-analysis boundary; reference-relative local/uploaded analysis; saved game library |
+| 2026-11-20 | 02 Build Package 1.2 candidate | AUTOMATED PASS — external configuration pending | Apply database migration and YouTube secret, then immutable Stage 03 candidate | 42 unit tests, production build, 11 Playwright scenarios; publish/like/My Space and paired readiness recovery pass |
 
 ## Active state
 
-Stage 02 integrated production repair and user-authorized scope expansion. The
-single upstream implementation worker owns the shared checkout; the duplicate
-factory-room worker was interrupted before it could commit product changes.
-The integrated candidate must close the Stage 06 readiness, fresh-input, and
-public-fixture findings while adding the authorized built-in references,
-official YouTube search/embed with a truthful no-frame-analysis boundary,
-reference-relative analysis for eligible built-in/uploaded clips, and a saved
-game library. It must return updated acceptance evidence and an immutable
-candidate for fresh Stage 03 and Stage 04 verification. Stage 07 remains closed.
+Package 1.2 has passed the complete local automated gate. It closes the Stage 06
+readiness, fresh-input, and public-fixture findings and adds built-in references,
+truthful YouTube search/embed, local reference analysis, My Space, intentional
+publishing, likes, and public-game collection. External release configuration is
+the remaining Stage 02 boundary: apply `supabase/community-library.sql` to the
+owner-controlled project and configure the server-only YouTube key. Then create
+an immutable candidate for fresh Stage 03 and Stage 04 verification. Stage 07
+remains closed.
 

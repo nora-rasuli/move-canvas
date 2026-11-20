@@ -43,9 +43,22 @@ describe("session message boundary", () => {
       type: "controller-ready",
       player,
     });
-    expect(parseSessionMessage({ type: "coach-controller-ready", mode: "dance-coach" })).toEqual({
-      type: "coach-controller-ready",
-      mode: "dance-coach",
+    expect(
+      parseSessionMessage({
+        type: "coach-controller-state",
+        mode: "dance-coach",
+        sessionId: "dance-coach-ABC123DEF456",
+        camera: "ready",
+        consent: true,
+        framed: true,
+        calibrated: true,
+        referenceReady: true,
+        sentAt: 1_800_000_000_000,
+      }),
+    ).toMatchObject({
+      type: "coach-controller-state",
+      camera: "ready",
+      calibrated: true,
     });
     expect(
       parseSessionMessage({
@@ -64,6 +77,20 @@ describe("session message boundary", () => {
 
   it("rejects malformed or oversized relay payloads", () => {
     expect(parseSessionMessage({ type: "blueprint", payload: { title: "unsafe" } })).toBeNull();
+    expect(
+      parseSessionMessage({
+        type: "coach-controller-state",
+        mode: "tennis-coach",
+        sessionId: null,
+        camera: "ready",
+        consent: true,
+        framed: true,
+        calibrated: false,
+        referenceReady: true,
+        sentAt: 0,
+        rawLandmarks: [],
+      }),
+    ).toBeNull();
     expect(
       parseSessionMessage({
         type: "controller-ready",

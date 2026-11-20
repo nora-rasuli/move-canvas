@@ -1,4 +1,5 @@
 import { CoachController } from "@/components/coach-controller";
+import { coachTestHarnessEnabled } from "@/lib/test-harness";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -7,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function CoachControllerPage() {
-  return <CoachController />;
+  return <CoachController testHarness={coachTestHarnessEnabled()} />;
 }

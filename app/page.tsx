@@ -1,17 +1,22 @@
 import { Creator } from "@/components/creator";
+import { SavedGames } from "@/components/saved-games";
+import { CommunityLibrary } from "@/components/community-library";
 import Link from "next/link";
 
 export default function Home() {
   return (
     <main id="main">
       <nav className="nav" aria-label="Primary navigation">
-        <a className="brand" href="#main" aria-label="Move Canvas home">
+        <a className="brand" href="#main">
           <span aria-hidden="true">M</span>
           Move Canvas
         </a>
         <Link className="nav-link" href="/coach">
           Choose a mode
         </Link>
+        <a className="nav-link" href="#library">
+          Game library
+        </a>
         <a className="nav-link" href="#how-it-works">
           How it works
         </a>
@@ -76,6 +81,8 @@ export default function Home() {
       </section>
 
       <Creator />
+      <SavedGames />
+      <CommunityLibrary />
 
       <section className="how" id="how-it-works" aria-labelledby="how-title">
         <p className="eyebrow">FROM SENTENCE TO START LINE</p>

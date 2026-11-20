@@ -35,6 +35,7 @@ export const gameResultSchema = z
 
 const gamePhaseSchema = z.enum(["ready", "playing", "paused", "finished"]);
 const coachModeSchema = z.enum(["dance-coach", "tennis-coach"]);
+const coachCameraStateSchema = z.enum(["idle", "requesting", "framing", "ready", "lost", "error"]);
 const sentAtSchema = z.number().finite().nonnegative();
 
 export const sessionMessageSchema = z.discriminatedUnion("type", [
@@ -65,7 +66,26 @@ export const sessionMessageSchema = z.discriminatedUnion("type", [
     .strict(),
   z.object({ type: z.literal("result"), result: gameResultSchema }).strict(),
   z.object({ type: z.literal("blueprint"), payload: gameBlueprintSchema }).strict(),
-  z.object({ type: z.literal("coach-controller-ready"), mode: coachModeSchema }).strict(),
+  z
+    .object({
+      type: z.literal("coach-controller-state"),
+      mode: coachModeSchema,
+      sessionId: z.string().min(1).max(80).nullable(),
+      camera: coachCameraStateSchema,
+      consent: z.boolean(),
+      framed: z.boolean(),
+      calibrated: z.boolean(),
+      referenceReady: z.boolean(),
+      sentAt: sentAtSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("coach-controller-left"),
+      mode: coachModeSchema,
+      sentAt: sentAtSchema,
+    })
+    .strict(),
   z.object({ type: z.literal("coach-display-ready"), mode: coachModeSchema }).strict(),
   z.object({ type: z.literal("coach-session"), session: coachSessionSchema }).strict(),
   z.object({ type: z.literal("dance-reference"), timeline: danceTimelineSchema }).strict(),
@@ -96,6 +116,10 @@ export type GameResult = z.infer<typeof gameResultSchema>;
 export type Player = z.infer<typeof playerSchema>;
 export type PlayerScore = z.infer<typeof playerScoreSchema>;
 export type SessionMessage = z.infer<typeof sessionMessageSchema>;
+export type CoachControllerStateMessage = Extract<
+  SessionMessage,
+  { type: "coach-controller-state" }
+>;
 
 export function parseSessionMessage(value: unknown): SessionMessage | null {
   return sessionMessageSchema.safeParse(value).data ?? null;
@@ -130,7 +154,10 @@ export function createPlayer(): Player {
   };
 }
 
-async function getBrowserClient(url: string, key: string) {
+export async function getBrowserSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !key) throw new Error("The shared game service is not configured.");
   if (!browserClientPromise) {
     browserClientPromise = (async () => {
       const { createClient } = await import("@supabase/supabase-js");
@@ -161,7 +188,7 @@ export async function connectSession(
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (url && key) {
     try {
-      const client = await getBrowserClient(url, key);
+      const client = await getBrowserSupabaseClient();
 
       const channel = client
         .channel(roomTopic(code), { config: { private: true } })

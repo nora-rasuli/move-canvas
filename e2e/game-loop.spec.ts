@@ -23,6 +23,74 @@ const blueprint = {
 
 const baseURL = "http://127.0.0.1:3000";
 
+const publishedGame = {
+  id: "31c8f2f4-218e-4e53-b41b-c43dc7253f93",
+  owner_id: "2fa9d54a-4076-49b3-becb-f572b6c5cd23",
+  record: {
+    version: "1.1",
+    blueprint,
+    provenance: {
+      generator: "deterministic-fallback",
+      model: null,
+      generatedAt: "2026-11-20T00:00:01.000Z",
+      sourcePrompt: "A space orchard where I reach for comet fruit",
+      validation: "passed",
+      degradedReason: "provider-not-configured",
+    },
+    edits: [],
+    acceptedAt: "2026-11-20T00:00:02.000Z",
+  },
+  title: blueprint.title,
+  description: blueprint.oneLine,
+  world: blueprint.theme.world,
+  likes_count: 3,
+  created_at: "2026-11-20T00:00:03.000Z",
+};
+
+async function mockCommunityBackend(page: import("@playwright/test").Page) {
+  const user = {
+    id: "aa9c3f37-df16-43bf-a605-cb698c36a6a7",
+    aud: "authenticated",
+    role: "authenticated",
+    is_anonymous: true,
+  };
+  const payload = Buffer.from(
+    JSON.stringify({ sub: user.id, role: "authenticated", exp: 4_102_444_800 }),
+  ).toString("base64url");
+  const accessToken = `eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.${payload}.signature`;
+  await page.route("**.supabase.co/auth/v1/**", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        access_token: accessToken,
+        refresh_token: "test-refresh-token",
+        expires_in: 3600,
+        expires_at: 4_102_444_800,
+        token_type: "bearer",
+        user,
+      }),
+    });
+  });
+  await page.route("**.supabase.co/rest/v1/game_likes**", async (route) => {
+    await route.fulfill({
+      status: route.request().method() === "POST" ? 201 : 200,
+      contentType: "application/json",
+      body: "[]",
+    });
+  });
+  await page.route("**.supabase.co/rest/v1/user_game_library**", async (route) => {
+    await route.fulfill({ status: 201, contentType: "application/json", body: "[]" });
+  });
+  await page.route("**.supabase.co/rest/v1/published_games**", async (route) => {
+    await route.fulfill({
+      status: route.request().method() === "POST" ? 201 : 200,
+      contentType: "application/json",
+      headers: { "Content-Range": "0-0/1" },
+      body: JSON.stringify(route.request().method() === "POST" ? [publishedGame] : [publishedGame]),
+    });
+  });
+}
+
 test("blueprint review supports regenerate, discard, validated edits, and retained provenance", async ({
   page,
 }) => {
@@ -66,10 +134,10 @@ test("blueprint review supports regenerate, discard, validated edits, and retain
   await page.getByLabel("Reach Left").uncheck();
   await page.getByLabel("Reach Right").uncheck();
   await page.getByLabel("Duck").uncheck();
-  await page.getByRole("button", { name: /Save & calibrate/ }).click();
+  await page.getByRole("button", { name: /Save game & calibrate/ }).click();
   await expect(page.getByText(/at least two supported movements/)).toBeVisible();
   await page.getByLabel("Reach Left").check();
-  await page.getByRole("button", { name: /Save & calibrate/ }).click();
+  await page.getByRole("button", { name: /Save game & calibrate/ }).click();
   await expect(page).toHaveURL(/\/calibrate$/);
 
   const retained = await page.evaluate(() => ({
@@ -82,6 +150,44 @@ test("blueprint review supports regenerate, discard, validated edits, and retain
   expect(retained.record.edits.map((edit: { field: string }) => edit.field)).toEqual(
     expect.arrayContaining(["title", "durationSeconds", "intensity", "gestures"]),
   );
+
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "Your games, ready when you are." }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Nora's Orbit Run" })).toBeVisible();
+});
+
+test("published library supports likes and adding a real blueprint to My Space", async ({
+  page,
+}) => {
+  await mockCommunityBackend(page);
+  await page.goto("/#library");
+  await expect(
+    page.getByRole("heading", { name: "Find your next living-room game." }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Orbit Orchard" })).toBeVisible();
+
+  const like = page.getByRole("button", { name: /Like Orbit Orchard/ });
+  await expect(like).toContainText("3");
+  await like.click();
+  await expect(page.getByRole("button", { name: /Unlike Orbit Orchard/ })).toContainText("4");
+
+  await page.getByRole("button", { name: "Add to My Space" }).click();
+  await expect(page.getByText(/was added to My Space/)).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Your games, ready when you are." }),
+  ).toBeVisible();
+  await expect(
+    page.locator(".saved-game-card").getByRole("heading", { name: "Orbit Orchard" }),
+  ).toBeVisible();
+
+  const axe = await new AxeBuilder({ page }).analyze();
+  expect(
+    axe.violations.filter(
+      (violation) => violation.impact === "serious" || violation.impact === "critical",
+    ),
+  ).toEqual([]);
 });
 
 test("public framing, route recovery, and persisted-data boundaries fail closed", async ({

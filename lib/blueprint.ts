@@ -105,59 +105,132 @@ export function parseStoredBlueprintRecord(raw: string | null): StoredBlueprintR
   }
 }
 
-const word = (value: string, fallback: string) => {
-  const clean = value
+const meaningfulWords = (value: string) =>
+  value
     .replace(/[^a-zA-Z0-9\s-]/g, " ")
     .split(/\s+/)
-    .filter((token) => token.length > 3)
-    .at(-1);
-  return clean ? clean[0].toUpperCase() + clean.slice(1).toLowerCase() : fallback;
-};
+    .filter(
+      (token) =>
+        token.length > 3 &&
+        !/^(where|with|from|into|before|after|through|around|that|this|game)$/i.test(token),
+    );
+
+const titleCase = (value: string) => value[0].toUpperCase() + value.slice(1).toLowerCase();
+
+const promptHash = (value: string) =>
+  [...value.toLowerCase()].reduce(
+    (hash, character) => (hash * 31 + character.charCodeAt(0)) >>> 0,
+    7,
+  );
 
 export function createFallbackBlueprint(prompt: string): GameBlueprint {
-  const subject = word(prompt, "Comet");
-  const isOcean = /ocean|fish|reef|pirate|wave/i.test(prompt);
-  const isForest = /forest|animal|fox|tree|nature/i.test(prompt);
+  const words = meaningfulWords(prompt);
+  const subject = titleCase(words.at(-1) ?? "Comet");
+  const hash = promptHash(prompt);
+  const isOcean = /ocean|fish|reef|coral|pirate|wave|underwater|jellyfish/i.test(prompt);
+  const isForest = /forest|garden|firefl|pumpkin|animal|fox|tree|nature|flower/i.test(prompt);
+  const isCity = /city|street|rooftop|subway|traffic|neon/i.test(prompt);
+  const isSnow = /snow|ice|winter|arctic|penguin/i.test(prompt);
+  const isDesert = /desert|cactus|sand|camel|oasis/i.test(prompt);
 
   const theme = isOcean
     ? {
         world: "Moonlit reef",
         player: "current rider",
-        collectible: "pearls",
-        hazard: "jellyfish",
+        collectible: /treasure|pearl/i.test(prompt) ? "pearls" : "coral lights",
+        hazard: /jellyfish/i.test(prompt) ? "jellyfish" : "riptides",
         palette: ["#071A2B", "#25D0AB", "#FFCE65"] as const,
       }
     : isForest
       ? {
-          world: "Electric forest",
-          player: "trail keeper",
-          collectible: "fireflies",
-          hazard: "storm clouds",
+          world: /garden|pumpkin/i.test(prompt) ? "Moonlit garden" : "Electric forest",
+          player: /garden|pumpkin/i.test(prompt) ? "garden runner" : "trail keeper",
+          collectible: /firefl/i.test(prompt) ? "fireflies" : "glow seeds",
+          hazard: /pumpkin/i.test(prompt) ? "rolling pumpkins" : "storm clouds",
           palette: ["#10261F", "#C9F45B", "#F86B4F"] as const,
         }
-      : {
-          world: `${subject} orbit`,
-          player: "star courier",
-          collectible: "star parcels",
-          hazard: "meteors",
-          palette: ["#120D2E", "#7CFFCB", "#FF6B8A"] as const,
-        };
+      : isCity
+        ? {
+            world: "Neon city",
+            player: "night courier",
+            collectible: "signal sparks",
+            hazard: "traffic pulses",
+            palette: ["#111126", "#56D6FF", "#FF5C9A"] as const,
+          }
+        : isSnow
+          ? {
+              world: "Aurora icefield",
+              player: "glacier scout",
+              collectible: "aurora shards",
+              hazard: "snow gusts",
+              palette: ["#09233A", "#A9F0FF", "#F7D06A"] as const,
+            }
+          : isDesert
+            ? {
+                world: "Sunset dunes",
+                player: "oasis runner",
+                collectible: "water gems",
+                hazard: "sand spirals",
+                palette: ["#311B18", "#FFBF69", "#70D6C8"] as const,
+              }
+            : {
+                world: `${subject} orbit`,
+                player: "star courier",
+                collectible: "star parcels",
+                hazard: "meteors",
+                palette: ["#120D2E", "#7CFFCB", "#FF6B8A"] as const,
+              };
+
+  const intensity = /gentle|slow|calm|easy/i.test(prompt)
+    ? "gentle"
+    : /fast|quick|race|rush|storm|dodge/i.test(prompt)
+      ? "lively"
+      : hash % 2
+        ? "gentle"
+        : "lively";
+  const durationSeconds = /quick|short|sprint/i.test(prompt)
+    ? 30
+    : /long|endurance|journey/i.test(prompt)
+      ? 90
+      : intensity === "gentle"
+        ? 90
+        : 60;
+  const gestureCandidates: Gesture[] = [];
+  if (/left|collect|catch|reach|grab|firefl|pearl|treasure/i.test(prompt))
+    gestureCandidates.push("reach_left", "reach_right");
+  if (/duck|dodge|avoid|under|rolling|storm|meteor|jellyfish/i.test(prompt))
+    gestureCandidates.push("duck");
+  if (/freeze|stop|signal|statue|hide/i.test(prompt)) gestureCandidates.push("freeze");
+  const rotation: Gesture[] = ["reach_left", "reach_right", "duck", "freeze"];
+  for (let offset = 0; gestureCandidates.length < (intensity === "lively" ? 4 : 3); offset += 1)
+    gestureCandidates.push(rotation[(hash + offset) % rotation.length]);
+  const gestures = [...new Set(gestureCandidates)].slice(0, intensity === "lively" ? 4 : 3);
+  while (gestures.length < 2) gestures.push(rotation[(hash + gestures.length) % rotation.length]);
+  const hazardRatio = Number((0.18 + ((hash >>> 3) % 24) / 100).toFixed(2));
+  const spawnEveryMs = intensity === "lively" ? 750 + (hash % 4) * 100 : 1250 + (hash % 4) * 150;
+  const pointsPerCollectible = [5, 10, 15, 20][hash % 4];
 
   return gameBlueprintSchema.parse({
     schemaVersion: "1.0",
-    title: `${subject} Dash`,
+    title: `${subject} ${intensity === "lively" ? "Dash" : "Quest"}`,
     oneLine: `Collect ${theme.collectible} and dodge ${theme.hazard} before the route closes.`,
     theme,
-    durationSeconds: 60,
-    intensity: "lively",
-    gestures: ["reach_left", "reach_right", "duck", "freeze"],
-    spawnEveryMs: 1100,
-    hazardRatio: 0.3,
-    pointsPerCollectible: 10,
+    durationSeconds,
+    intensity,
+    gestures,
+    spawnEveryMs,
+    hazardRatio,
+    pointsPerCollectible,
     instructions: [
-      `Reach left or right to catch ${theme.collectible}.`,
-      `Duck below ${theme.hazard}.`,
-      "Freeze when the signal turns violet.",
+      gestures.includes("reach_left")
+        ? `Reach toward each side to catch ${theme.collectible}.`
+        : `Hold your space while ${theme.collectible} approach.`,
+      gestures.includes("duck")
+        ? `Duck below ${theme.hazard}.`
+        : `Freeze to let ${theme.hazard} pass.`,
+      gestures.includes("freeze")
+        ? "Freeze when the signal turns violet."
+        : "Keep a steady rhythm between targets.",
     ],
   });
 }

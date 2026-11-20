@@ -2,6 +2,7 @@ node_modules
 .next
 coverage
 test-results
+test-results*
 playwright-report
 evidence
 *.md

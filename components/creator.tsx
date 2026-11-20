@@ -12,6 +12,10 @@ import {
   type StoredBlueprintRecord,
 } from "@/lib/blueprint";
 import { writeBrowserStorage } from "@/lib/browser-storage";
+import { saveGame } from "@/lib/saved-games";
+import { SAVED_GAMES_CHANGED } from "@/components/saved-games";
+import { publishGame } from "@/lib/community-games";
+import { COMMUNITY_GAMES_CHANGED } from "@/components/community-library";
 
 const SUGGESTIONS = [
   "A space courier where I reach for stars and duck meteors",
@@ -129,6 +133,8 @@ function BlueprintPreview({
   const router = useRouter();
   const [game, setGame] = useState(result.blueprint);
   const [editError, setEditError] = useState("");
+  const [publishStatus, setPublishStatus] = useState<"idle" | "publishing" | "published">("idle");
+  const [publishMessage, setPublishMessage] = useState("");
 
   function update<K extends keyof GameBlueprint>(field: K, value: GameBlueprint[K]) {
     setGame((current) => ({ ...current, [field]: value }));
@@ -142,24 +148,29 @@ function BlueprintPreview({
     update("gestures", gestures);
   }
 
-  function acceptBlueprint() {
+  function buildRecord() {
     const parsed = gameBlueprintSchema.safeParse(game);
     if (!parsed.success) {
       setEditError("Keep a title, a clear description, and at least two supported movements.");
-      return;
+      return null;
     }
     const edits = collectEdits(result.blueprint, parsed.data);
-    const record: StoredBlueprintRecord = {
+    return {
       version: "1.1",
       blueprint: parsed.data,
       provenance: result.provenance,
       edits,
       acceptedAt: new Date().toISOString(),
-    };
+    } satisfies StoredBlueprintRecord;
+  }
+
+  function acceptBlueprint() {
+    const record = buildRecord();
+    if (!record) return;
     const blueprintSaved = writeBrowserStorage(
       "local",
       "move-canvas:active-blueprint",
-      JSON.stringify(parsed.data),
+      JSON.stringify(record.blueprint),
     );
     const recordSaved = writeBrowserStorage(
       "local",
@@ -170,7 +181,31 @@ function BlueprintPreview({
       setEditError("Browser storage is unavailable. Allow local site data, then try again.");
       return;
     }
+    const libraryEntry = saveGame(record);
+    if (!libraryEntry) {
+      setEditError("Browser storage is unavailable. Allow local site data, then try again.");
+      return;
+    }
+    window.dispatchEvent(new Event(SAVED_GAMES_CHANGED));
     router.push("/calibrate");
+  }
+
+  async function publishBlueprint() {
+    const record = buildRecord();
+    if (!record) return;
+    setPublishStatus("publishing");
+    setPublishMessage("");
+    try {
+      await publishGame(record);
+      if (!saveGame(record)) throw new Error("Browser storage is unavailable.");
+      window.dispatchEvent(new Event(SAVED_GAMES_CHANGED));
+      window.dispatchEvent(new Event(COMMUNITY_GAMES_CHANGED));
+      setPublishStatus("published");
+      setPublishMessage("Published to the player library and saved to My Space.");
+    } catch {
+      setPublishStatus("idle");
+      setPublishMessage("Publishing failed. Check your connection and try again.");
+    }
   }
 
   return (
@@ -275,7 +310,19 @@ function BlueprintPreview({
       </div>
       <div className="blueprint-actions">
         <button className="button button-primary" type="button" onClick={acceptBlueprint}>
-          Save &amp; calibrate <span aria-hidden="true">→</span>
+          Save game &amp; calibrate <span aria-hidden="true">→</span>
+        </button>
+        <button
+          className="button button-publish"
+          type="button"
+          disabled={publishStatus !== "idle"}
+          onClick={() => void publishBlueprint()}
+        >
+          {publishStatus === "publishing"
+            ? "Publishing…"
+            : publishStatus === "published"
+              ? "Published"
+              : "Publish to library"}
         </button>
         <button className="button button-ghost" type="button" onClick={onRegenerate}>
           Regenerate from idea
@@ -283,7 +330,15 @@ function BlueprintPreview({
         <button className="button button-ghost" type="button" onClick={onDiscard}>
           Discard blueprint
         </button>
-        <p>Next: use your camera to set a comfortable range. No video is uploaded.</p>
+        <p>Save keeps it private. Publish shares the reviewed game blueprint—never camera video.</p>
+        {publishMessage ? (
+          <p
+            className={publishStatus === "published" ? "publish-success" : "form-error"}
+            role="status"
+          >
+            {publishMessage}
+          </p>
+        ) : null}
       </div>
     </article>
   );

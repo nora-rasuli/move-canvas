@@ -1,4 +1,5 @@
 import { CoachDisplay } from "@/components/coach-display";
+import { coachTestHarnessEnabled } from "@/lib/test-harness";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -8,5 +9,5 @@ export const metadata: Metadata = {
 };
 
 export default function TennisCoachPage() {
-  return <CoachDisplay mode="tennis-coach" />;
+  return <CoachDisplay mode="tennis-coach" testHarness={coachTestHarnessEnabled()} />;
 }

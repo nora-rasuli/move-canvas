@@ -3,10 +3,12 @@
 Move Canvas is a browser-based motion experience with three bounded modes:
 
 - **Motion Game** turns a sentence into a schema-validated collect-and-dodge blueprint. The player reviews and edits the blueprint, calibrates comfortable movements, pairs a display, and plays with a phone camera.
-- **Dance Coach** compares estimated 2D pose and timing with a user-selected 10–90 second local reference clip.
-- **Tennis Coach** recognizes coarse phases in a ball-free, racket-free shadow serve or shadow forehand.
+- **Dance Coach** compares estimated 2D pose and timing with bundled licensed human-motion clips or a user-selected 10–90 second local reference clip.
+- **Tennis Coach** combines reference-relative 2D comparison with coarse phase recognition for a ball-free, racket-free shadow serve or shadow forehand.
 
 Raw phone-camera frames, raw user landmarks, reference-video bytes, audio, and face identity stay in the browser where they originate. Coaching output is deterministic practice feedback, not medical, injury-prevention, biomechanics, ball/racket, or professional-coaching analysis.
+
+Players can keep a game privately in **My Space** or intentionally publish its reviewed blueprint to the shared game library. Published games can be liked and copied into another player's space. Camera media and coaching data are never part of a published game.
 
 **Live production:** <https://move-canvas.vercel.app>
 
@@ -25,7 +27,7 @@ The repository does **not** claim physical-device validation, measured performan
 | Vision                 | MediaPipe Pose Landmarker loaded in the originating browser                                                                       |
 | Runtime                | Deterministic game, dance-comparison, tennis-phase, calibration, and clock state machines                                         |
 | Pairing                | Anonymous-authenticated private Supabase Realtime Broadcast rooms; same-device `BroadcastChannel` fallback for local verification |
-| Persistence            | Local blueprint, provenance, result, and aggregate coaching summary; session-scoped calibration                                   |
+| Persistence            | Browser-local My Space plus Supabase-backed published games, likes, and library membership; local results and coaching summaries  |
 | Data sent to the peer  | Validated blueprint/game state, normalized reference timeline, semantic movement/phase/confidence events, and aggregate result    |
 
 All persisted blueprints, calibration profiles, player records, and inbound room messages are schema-validated before use. Possession of a high-entropy 12-character room code grants access to its short-lived private topic; the included RLS policy limits anonymous authenticated clients to correctly shaped Move Canvas Broadcast topics.
@@ -49,16 +51,18 @@ Optional variables:
 | -------------------------------------- | ---------------------------------------------------------------------------- |
 | `AI_GATEWAY_API_KEY`                   | Enables structured Motion Game blueprint generation                          |
 | `AI_MODEL`                             | Gateway model identifier; defaults to the value documented in `.env.example` |
+| `YOUTUBE_API_KEY`                      | Server-only YouTube Data API key for reference search                        |
 | `SITE_URL`                             | Canonical origin for social metadata outside Vercel                          |
 | `NEXT_PUBLIC_SUPABASE_URL`             | Supabase project URL for cross-device private rooms                          |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Public browser key; never use a secret or service-role key                   |
 
-Apply [`supabase/realtime-policies.sql`](supabase/realtime-policies.sql) only to the intended owner-controlled Supabase project. Before testing cross-device rooms:
+Apply [`supabase/realtime-policies.sql`](supabase/realtime-policies.sql) and [`supabase/community-library.sql`](supabase/community-library.sql) only to the intended owner-controlled Supabase project. Before testing cross-device rooms and the shared library:
 
 1. enable anonymous sign-ins;
 2. disable Realtime **Allow public access** so every channel join is checked against `realtime.messages` RLS;
 3. apply the two Broadcast policies and confirm no broader permissive policy remains; and
 4. verify unauthenticated and malformed-topic joins fail, while an authenticated valid topic can send and receive only within that exact topic.
+5. verify public games are readable, while publish/delete, likes, and My Space writes are restricted by `auth.uid()` row-level security.
 
 Anonymous users use the `authenticated` Postgres role and are durable Auth records. Supabase documents an IP-based limit of 30 anonymous sign-ins per hour and does not provide automatic anonymous-user cleanup. This release has no verified CAPTCHA/bot-control setting or automated retention job; those are documented public-abuse and operational limitations rather than hidden assurances.
 
@@ -74,6 +78,12 @@ Anonymous users use the `authenticated` Postgres role and are durable Auth recor
 | `/coach/dance`      | Local-reference Dance Coach display                       |
 | `/coach/tennis`     | Shadow-practice Tennis Coach display                      |
 | `/coach/controller` | Paired phone camera for coaching modes                    |
+
+Bundled reference media is documented in [`REFERENCE-CREDITS.md`](REFERENCE-CREDITS.md).
+YouTube search uses the official Data API and privacy-enhanced embed player. YouTube does not expose
+player frames for browser pose extraction and its developer policy prohibits downloading or caching
+the audiovisual content, so scored reference comparison is limited to bundled licensed clips and
+user-owned uploads.
 
 Controller, calibration, room, display, and API routes are excluded from search indexing. Public product routes include route metadata and a generated social card.
 

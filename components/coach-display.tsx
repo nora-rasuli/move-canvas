@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { connectSession, createRoomCode, type SessionConnection } from "@/lib/channel";
+import {
+  connectSession,
+  createRoomCode,
+  type CoachControllerStateMessage,
+  type SessionConnection,
+} from "@/lib/channel";
 import { readBrowserStorage, writeBrowserStorage } from "@/lib/browser-storage";
 import {
   DANCE_LIMITATION,
@@ -32,11 +37,20 @@ import {
 } from "@/lib/coach-clock";
 import { loadReferenceVideo, extractReferenceTimeline } from "@/lib/reference-extractor";
 import type { DanceOrientation } from "@/lib/dance";
+import { evaluateCoachReadiness } from "@/lib/coach-readiness";
+import { clipsForMode, type ReferenceClip } from "@/lib/reference-library";
+import { youtubeEmbedUrl, youtubeSearchResponseSchema, type YouTubeResult } from "@/lib/youtube";
 
 type CoachMode = "dance-coach" | "tennis-coach";
 type ExtractionState = "empty" | "loading" | "ready" | "error";
 
-export function CoachDisplay({ mode }: { mode: CoachMode }) {
+export function CoachDisplay({
+  mode,
+  testHarness = false,
+}: {
+  mode: CoachMode;
+  testHarness?: boolean;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const referenceDisposeRef = useRef<(() => void) | null>(null);
   const connectionRef = useRef<SessionConnection | null>(null);
@@ -46,9 +60,12 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
   const handledControlsRef = useRef(new Set<string>());
   const countdownTimerRef = useRef<number | null>(null);
   const applyControlRef = useRef<(control: CoachControl) => void>(() => undefined);
+  const controllerReadyRef = useRef(false);
   const [code, setCode] = useState("");
   const [origin, setOrigin] = useState("");
-  const [connected, setConnected] = useState(false);
+  const [transportReady, setTransportReady] = useState(false);
+  const [controllerState, setControllerState] = useState<CoachControllerStateMessage | null>(null);
+  const [peerNow, setPeerNow] = useState(Date.now);
   const [transport, setTransport] = useState<"supabase" | "same-device">("same-device");
   const [timeline, setTimeline] = useState<DanceTimeline | null>(null);
   const [clipLabel, setClipLabel] = useState("");
@@ -62,10 +79,15 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
   const [repCount, setRepCount] = useState(0);
   const [danceEvents, setDanceEvents] = useState<DanceFeedbackEvent[]>([]);
   const [result, setResult] = useState<CoachResult | null>(null);
-  const [running, setRunning] = useState(false);
   const [recoveryNotice, setRecoveryNotice] = useState("");
   const [clock, setClock] = useState(createCoachClock);
+  const running = clock.phase === "running";
   const [clockNow, setClockNow] = useState(0);
+  const [youtubeQuery, setYoutubeQuery] = useState("");
+  const [youtubeResults, setYoutubeResults] = useState<YouTubeResult[]>([]);
+  const [youtubeStatus, setYoutubeStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [youtubeError, setYoutubeError] = useState("");
+  const [youtubeSelection, setYoutubeSelection] = useState<YouTubeResult | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -87,7 +109,8 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
             mode,
             createdAt: new Date().toISOString(),
             status: running ? "running" : "ready",
-            ...(mode === "dance-coach" ? { clipLabel } : { drill, handedness }),
+            clipLabel,
+            ...(mode === "tennis-coach" ? { drill, handedness } : {}),
           }
         : null,
     [clipLabel, code, drill, handedness, mode, running],
@@ -106,14 +129,23 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
     void connectSession(
       code,
       (message) => {
-        if (message.type === "coach-controller-ready" && message.mode === mode) {
-          setConnected(true);
+        if (message.type === "coach-controller-state" && message.mode === mode) {
+          setControllerState(message);
+          setPeerNow(Date.now());
+          controllerReadyRef.current = evaluateCoachReadiness({
+            relayConnected: true,
+            controller: message,
+            expectedMode: mode,
+            expectedSessionId: currentSessionRef.current?.id ?? null,
+            referenceRequired: true,
+            now: Date.now(),
+          }).ready;
           if (currentSessionRef.current)
             void connectionRef.current?.send({
               type: "coach-session",
               session: currentSessionRef.current,
             });
-          if (mode === "dance-coach" && timelineRef.current)
+          if (timelineRef.current)
             void connectionRef.current?.send({
               type: "dance-reference",
               timeline: timelineRef.current,
@@ -121,10 +153,13 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
           const sync = createClockSyncControl(clockRef.current, performance.now());
           if (sync) void connectionRef.current?.send({ type: "coach-control", ...sync });
         }
+        if (message.type === "coach-controller-left" && message.mode === mode) {
+          setControllerState(null);
+          setPeerNow(Date.now());
+        }
         if (message.type === "coach-session") {
           const parsed = coachSessionSchema.safeParse(message.session);
           if (parsed.success && parsed.data.mode === mode) {
-            setConnected(true);
             if (mode === "dance-coach" && parsed.data.clipLabel)
               setClipLabel(parsed.data.clipLabel);
             if (mode === "tennis-coach") {
@@ -133,7 +168,7 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
             }
           }
         }
-        if (message.type === "dance-reference" && mode === "dance-coach") {
+        if (message.type === "dance-reference") {
           const parsed = danceTimelineSchema.safeParse(message.timeline);
           if (parsed.success) {
             setTimeline(parsed.data);
@@ -151,13 +186,22 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
         }
         if (message.type === "coach-result") {
           setResult(message.result);
-          setRunning(false);
         }
         if (message.type === "coach-control") {
+          if (
+            (message.action === "start" ||
+              message.action === "countdown" ||
+              message.action === "resume") &&
+            !controllerReadyRef.current
+          )
+            return;
           applyControlRef.current(message);
         }
       },
-      setConnected,
+      (ready) => {
+        setTransportReady(ready);
+        if (!ready) setControllerState(null);
+      },
     ).then((connection) => {
       if (!active) return void connection.close();
       connectionRef.current = connection;
@@ -173,6 +217,11 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
       connectionRef.current = null;
     };
   }, [code, mode]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setPeerNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (clock.phase !== "running" && clock.phase !== "countdown") return;
@@ -192,14 +241,13 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
     clockRef.current = next;
     setClock(next);
     setClockNow(performance.now());
-    setRunning(next.phase === "running");
-    if (mode === "dance-coach" && videoRef.current) syncReferenceMedia(videoRef.current, control);
+    if (videoRef.current) syncReferenceMedia(videoRef.current, control);
   }
   useEffect(() => {
     applyControlRef.current = applyControlMessage;
   });
 
-  async function chooseReference(file: File | undefined) {
+  async function chooseReference(file: File | undefined, label = file?.name ?? "") {
     if (!file || !videoRef.current) return;
     setError("");
     setExtraction("loading");
@@ -221,14 +269,52 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
       videoRef.current.currentTime = 0;
       referenceDisposeRef.current = loaded.dispose;
       setTimeline(extracted);
-      setClipLabel(file.name);
+      setClipLabel(label || file.name);
+      setYoutubeSelection(null);
       setExtraction("ready");
-      if (connected)
+      if (controllerState)
         await connectionRef.current?.send({ type: "dance-reference", timeline: extracted });
     } catch (caught) {
       loaded?.dispose();
       setExtraction("error");
       setError(caught instanceof Error ? caught.message : "The reference could not be analyzed.");
+    }
+  }
+
+  async function chooseBuiltIn(clip: ReferenceClip) {
+    setError("");
+    try {
+      const response = await fetch(clip.src);
+      if (!response.ok) throw new Error("The built-in reference could not be loaded.");
+      const blob = await response.blob();
+      await chooseReference(new File([blob], `${clip.id}.mp4`, { type: "video/mp4" }), clip.label);
+    } catch (caught) {
+      setExtraction("error");
+      setError(caught instanceof Error ? caught.message : "The built-in clip could not be loaded.");
+    }
+  }
+
+  async function searchYouTube(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setYoutubeStatus("loading");
+    setYoutubeError("");
+    try {
+      const response = await fetch(`/api/youtube/search?q=${encodeURIComponent(youtubeQuery)}`);
+      const payload: unknown = await response.json();
+      if (!response.ok) {
+        const message =
+          payload && typeof payload === "object" && "error" in payload
+            ? String(payload.error)
+            : "YouTube search is unavailable.";
+        throw new Error(message);
+      }
+      const parsed = youtubeSearchResponseSchema.safeParse(payload);
+      if (!parsed.success) throw new Error("YouTube returned an invalid search response.");
+      setYoutubeResults(parsed.data.results);
+      setYoutubeStatus("idle");
+    } catch (caught) {
+      setYoutubeStatus("error");
+      setYoutubeError(caught instanceof Error ? caught.message : "YouTube search is unavailable.");
     }
   }
 
@@ -239,7 +325,8 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
     setExtraction("ready");
     setError("");
     setRecoveryNotice("");
-    if (connected) void connectionRef.current?.send({ type: "dance-reference", timeline: fixture });
+    if (controllerState)
+      void connectionRef.current?.send({ type: "dance-reference", timeline: fixture });
   }
 
   async function control(action: CoachControlAction) {
@@ -266,6 +353,7 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
   }
 
   function startPractice() {
+    if (!canStart) return;
     if (mode === "dance-coach") return void control("start");
     void control("countdown");
     if (countdownTimerRef.current !== null) window.clearTimeout(countdownTimerRef.current);
@@ -281,7 +369,37 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
     void control("cancel-countdown");
   }
 
-  const canStart = connected && (mode === "tennis-coach" || extraction === "ready");
+  const readiness = evaluateCoachReadiness({
+    relayConnected: transportReady,
+    controller: controllerState,
+    expectedMode: mode,
+    expectedSessionId: currentSession?.id ?? null,
+    referenceRequired: true,
+    now: peerNow,
+  });
+  const canStart = readiness.ready && extraction === "ready";
+  useEffect(() => {
+    controllerReadyRef.current = readiness.ready;
+  }, [readiness.ready]);
+  useEffect(() => {
+    if (readiness.ready) return;
+    const phase = clockRef.current.phase;
+    if (phase !== "running" && phase !== "countdown") return;
+    if (countdownTimerRef.current !== null) {
+      window.clearTimeout(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    const action = phase === "countdown" ? "cancel-countdown" : "pause";
+    const message = createCoachControl(
+      action,
+      "tracking-loss",
+      clockRef.current,
+      performance.now(),
+    );
+    applyControlRef.current(message);
+    void connectionRef.current?.send({ type: "coach-control", ...message });
+    setRecoveryNotice("Practice stopped safely because the calibrated phone is no longer ready.");
+  }, [readiness.ready]);
   const controllerUrl =
     origin && code ? `${origin}/coach/controller?mode=${mode}&code=${code}` : "";
   const recentDance = danceEvents.at(-1);
@@ -319,8 +437,8 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
         <div className="coach-room" aria-label={`Room ${code}`}>
           <span>ROOM</span>
           <strong>{code || "OPENING"}</strong>
-          <span className={connected ? "status-pill status-ready" : "status-pill"}>
-            {connected ? "Phone connected" : "Waiting for phone"}
+          <span className={readiness.ready ? "status-pill status-ready" : "status-pill"}>
+            {readiness.status}
           </span>
         </div>
       </section>
@@ -328,72 +446,70 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
       <section className="coach-grid">
         <div className="coach-panel coach-setup">
           <p className="eyebrow">1 · PREPARE ON THIS DISPLAY</p>
-          {mode === "dance-coach" ? (
-            <>
-              <label>
-                Lead orientation
-                <select
-                  value={orientation}
-                  onChange={(event) => setOrientation(event.target.value as DanceOrientation)}
-                >
-                  <option value="lead-left">Lead left</option>
-                  <option value="lead-right">Lead right</option>
-                  <option value="mirror">Mirror reference</option>
-                </select>
-              </label>
-              <label>
-                Local reference clip
-                <input
-                  aria-describedby="reference-help"
-                  type="file"
-                  accept="video/mp4,video/webm,.mp4,.webm"
-                  onChange={(event) => void chooseReference(event.target.files?.[0])}
-                />
-              </label>
-              <p id="reference-help" className="field-help">
-                MP4 or WebM, 10–90 seconds. The file stays in this browser and is discarded after
-                local extraction.
+          <div className="reference-library" aria-labelledby="reference-library-title">
+            <div>
+              <h2 id="reference-library-title">Choose a real movement reference</h2>
+              <p>
+                Built-in and uploaded clips are analyzed locally into a compact 2D pose timeline.
               </p>
-              <video
-                ref={videoRef}
-                className="reference-video"
-                controls
-                playsInline
-                onEnded={() => void control("stop")}
-              />
-              <div className="coach-status" role="status" aria-live="polite">
-                {extraction === "empty"
-                  ? "Choose a reference to begin local pose extraction."
-                  : null}
-                {extraction === "loading"
-                  ? `Extracting estimated 2D poses locally… ${Math.round(progress * 100)}%`
-                  : null}
-                {extraction === "ready" && timeline
-                  ? `${timeline.frames.length} confidence-qualified samples · ${Math.round(serializedBytes(timeline) / 1024)} KiB timeline`
-                  : null}
-                {extraction === "error" ? (
-                  <span role="alert">{error} Choose a different local clip and try again.</span>
-                ) : null}
-                {recoveryNotice ? <span>{recoveryNotice}</span> : null}
-              </div>
-              <div className="safety-card">
-                <strong>Comfort-and-space check</strong>
-                <p>
-                  Choose a reference with movements that fit your comfortable range and clear space.
-                  Stop instead of copying any movement that feels unsafe or unclear.
-                </p>
-              </div>
-              <details className="verification-controls">
-                <summary>Deterministic verification controls</summary>
-                <p>
-                  This synthetic landmark timeline tests UI and transport only. It is not real-clip
-                  or real-device evidence.
-                </p>
-                <button type="button" onClick={loadVerificationTimeline}>
-                  Load landmark fixture
-                </button>
-              </details>
-            </>
+            </div>
+            <div className="reference-card-grid">
+              {clipsForMode(mode).map((clip) => (
+                <article className="reference-card" key={clip.id}>
+                  <video
+                    src={clip.src}
+                    muted
+                    playsInline
+                    preload="metadata"
+                    aria-label={clip.label}
+                  />
+                  <h3>{clip.label}</h3>
+                  <p>{clip.description}</p>
+                  <button
+                    className="button button-ghost"
+                    type="button"
+                    disabled={extraction === "loading"}
+                    onClick={() => void chooseBuiltIn(clip)}
+                  >
+                    Analyze this clip
+                  </button>
+                  <small>
+                    <a href={clip.sourceUrl} target="_blank" rel="noreferrer">
+                      Source
+                    </a>{" "}
+                    ·{" "}
+                    <a href={clip.licenseUrl} target="_blank" rel="noreferrer">
+                      Mixkit Free License
+                    </a>
+                  </small>
+                </article>
+              ))}
+            </div>
+          </div>
+          <label>
+            Upload your own reference clip
+            <input
+              aria-describedby="reference-help"
+              type="file"
+              accept="video/mp4,video/webm,.mp4,.webm"
+              onChange={(event) => void chooseReference(event.target.files?.[0])}
+            />
+          </label>
+          <p id="reference-help" className="field-help">
+            MP4 or WebM, 10–90 seconds. The file and raw reference landmarks stay in this browser.
+          </p>
+          {mode === "dance-coach" ? (
+            <label>
+              Lead orientation
+              <select
+                value={orientation}
+                onChange={(event) => setOrientation(event.target.value as DanceOrientation)}
+              >
+                <option value="lead-left">Lead left</option>
+                <option value="lead-right">Lead right</option>
+                <option value="mirror">Mirror reference</option>
+              </select>
+            </label>
           ) : (
             <>
               <label>
@@ -427,15 +543,98 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
                   Shadow Forehand
                 </label>
               </fieldset>
-              <div className="safety-card">
-                <strong>Clear-space check</strong>
-                <p>
-                  Practice without a ball or racket. Keep a clear arm-span around you and stop if
-                  the space no longer feels clear.
-                </p>
-              </div>
             </>
           )}
+          <video
+            ref={videoRef}
+            className="reference-video"
+            controls
+            playsInline
+            onEnded={() => void control("stop")}
+          />
+          <div className="coach-status" role="status" aria-live="polite">
+            {extraction === "empty" ? "Choose a reference to begin local pose extraction." : null}
+            {extraction === "loading"
+              ? `Extracting estimated 2D poses locally… ${Math.round(progress * 100)}%`
+              : null}
+            {extraction === "ready" && timeline
+              ? `${clipLabel} · ${timeline.frames.length} confidence-qualified samples · ${Math.round(serializedBytes(timeline) / 1024)} KiB timeline`
+              : null}
+            {extraction === "error" ? (
+              <span role="alert">{error} Choose a different reference and try again.</span>
+            ) : null}
+            {recoveryNotice ? <span>{recoveryNotice}</span> : null}
+          </div>
+
+          <details className="youtube-reference">
+            <summary>Find a visual reference on YouTube</summary>
+            <form onSubmit={searchYouTube}>
+              <label>
+                Search YouTube
+                <input
+                  value={youtubeQuery}
+                  minLength={2}
+                  maxLength={80}
+                  onChange={(event) => setYoutubeQuery(event.target.value)}
+                  placeholder={mode === "dance-coach" ? "easy dance routine" : "tennis serve drill"}
+                />
+              </label>
+              <button
+                className="button button-ink"
+                type="submit"
+                disabled={youtubeStatus === "loading"}
+              >
+                {youtubeStatus === "loading" ? "Searching…" : "Search"}
+              </button>
+            </form>
+            {youtubeError ? <p role="alert">{youtubeError}</p> : null}
+            <div className="youtube-results">
+              {youtubeResults.map((video) => (
+                <button
+                  type="button"
+                  key={video.id}
+                  onClick={() => setYoutubeSelection(video)}
+                  aria-pressed={youtubeSelection?.id === video.id}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={video.thumbnail} alt="" width="240" height="135" />
+                  <strong>{video.title}</strong>
+                  <span>{video.channelTitle}</span>
+                </button>
+              ))}
+            </div>
+            {youtubeSelection ? (
+              <iframe
+                className="youtube-player"
+                src={youtubeEmbedUrl(youtubeSelection.id)}
+                title={`YouTube reference: ${youtubeSelection.title}`}
+                allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            ) : null}
+            <p className="field-help">
+              YouTube supports search and embedded playback. Its player does not expose video frames
+              for pose extraction, so comparison scoring requires a built-in clip or a video file
+              you own and upload here.
+            </p>
+          </details>
+
+          <div className="safety-card">
+            <strong>Comfort-and-space check</strong>
+            <p>
+              Choose movement that fits your comfortable range, clear an arm-span around you, and
+              stop instead of copying anything unsafe or unclear.
+            </p>
+          </div>
+          {testHarness ? (
+            <details className="verification-controls">
+              <summary>Deterministic verification controls</summary>
+              <p>This test-only timeline never appears in production.</p>
+              <button type="button" onClick={loadVerificationTimeline}>
+                Load landmark fixture
+              </button>
+            </details>
+          ) : null}
         </div>
 
         <div className="coach-panel coach-pair">
@@ -533,7 +732,7 @@ export function CoachDisplay({ mode }: { mode: CoachMode }) {
               End session
             </button>
           ) : null}
-          {clock.phase === "paused" && connected ? (
+          {clock.phase === "paused" && readiness.ready ? (
             <button
               className="button button-primary"
               type="button"
