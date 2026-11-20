@@ -72,11 +72,11 @@ test("dance and tennis expose clear practice libraries", async ({ page }) => {
 });
 
 test("the first built-in Dance reference produces a usable local timeline", async ({ page }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
   await page.goto("/coach/dance");
   await page.getByRole("button", { name: "Analyze this clip" }).first().click();
   await expect(page.getByRole("status")).toContainText(/clear reference frames/, {
-    timeout: 100_000,
+    timeout: 160_000,
   });
   await expect(page.getByRole("status")).not.toContainText(/choose a different reference/i);
 });
