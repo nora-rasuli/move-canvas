@@ -1,6 +1,6 @@
 # Move Canvas
 
-Move Canvas is a private, browser-based motion experience with three bounded modes:
+Move Canvas is a browser-based motion experience with three bounded modes:
 
 - **Motion Game** turns a sentence into a schema-validated collect-and-dodge blueprint. The player reviews and edits the blueprint, calibrates comfortable movements, pairs a display, and plays with a phone camera.
 - **Dance Coach** compares estimated 2D pose and timing with a user-selected 10–90 second local reference clip.
@@ -8,11 +8,13 @@ Move Canvas is a private, browser-based motion experience with three bounded mod
 
 Raw phone-camera frames, raw user landmarks, reference-video bytes, audio, and face identity stay in the browser where they originate. Coaching output is deterministic practice feedback, not medical, injury-prevention, biomechanics, ball/racket, or professional-coaching analysis.
 
+**Live production:** <https://move-canvas.vercel.app>
+
 ## Current release boundary
 
-Package 1.1 is an audited local release candidate for a future preview deployment. The automated product gate covers the three mode routes, private-room semantics, deterministic analysis, keyboard paths, reduced motion, serious/critical axe checks, unit tests, production build, and multi-context Playwright flows.
+Package 1.1 is deployed from verified commit `5f94a5e946c12434a05908179a0193ee2804e3b2`. The production gate covers all declared routes, private-room authorization and isolation, deterministic analysis, keyboard paths, reduced motion, serious/critical axe checks, unit tests, production build, the live Blueprint API, and multi-context Playwright flows.
 
-The repository does **not** claim public deployment or physical-device validation. A fresh physical phone/camera/TV matrix, real reference-media extraction profile, assistive-technology review, and network latency/privacy capture remain release evidence debt. See [`project-package.md`](project-package.md) and [`validation-report-1.1-recheck-2.md`](validation-report-1.1-recheck-2.md).
+The repository does **not** claim physical-device validation, measured performance, WCAG conformance, coaching effectiveness, or medical/biomechanical outcomes. A fresh physical phone/camera/TV matrix, real reference-media extraction profile, assistive-technology review, and network latency/privacy capture remain evidence debt. See [`project-package.md`](project-package.md), [`validation-report-1.1-recheck-2.md`](validation-report-1.1-recheck-2.md), and [`publish-report-1.1.md`](publish-report-1.1.md).
 
 ## Architecture
 
@@ -58,7 +60,7 @@ Apply [`supabase/realtime-policies.sql`](supabase/realtime-policies.sql) only to
 3. apply the two Broadcast policies and confirm no broader permissive policy remains; and
 4. verify unauthenticated and malformed-topic joins fail, while an authenticated valid topic can send and receive only within that exact topic.
 
-Anonymous users use the `authenticated` Postgres role and are durable Auth records. A public launch therefore also needs owner-configured bot protection/rate limits and an anonymous-user retention/cleanup plan. The local candidate does not make those project-level changes.
+Anonymous users use the `authenticated` Postgres role and are durable Auth records. Supabase documents an IP-based limit of 30 anonymous sign-ins per hour and does not provide automatic anonymous-user cleanup. This release has no verified CAPTCHA/bot-control setting or automated retention job; those are documented public-abuse and operational limitations rather than hidden assurances.
 
 ## Routes
 
@@ -91,15 +93,15 @@ npm audit
 
 The GitHub Actions workflow installs Chromium and runs the same complete `verify` chain plus a high-severity dependency audit. Playwright can refresh retained evidence screenshots, so release verification should run in a disposable checkout and compare the retained source manifest before accepting changes.
 
-## Preview deployment checklist
+## Release operations checklist
 
-1. Configure only owner-controlled preview environment variables.
+1. Keep only the public Supabase URL and publishable client key in browser-exposed Vercel variables; never add a service-role or secret key.
 2. Verify anonymous Auth and private Realtime policies against the exact Supabase project.
    Confirm **Allow public access** is disabled and public-launch abuse controls are configured.
-3. Run `npm ci`, `npm audit`, and `npm run verify` from a clean checkout.
-4. Confirm the preview response includes the security headers from `next.config.ts`.
-5. Reproduce all three fresh-input paths and failure states on the preview URL.
-6. Complete the physical device, network, screen-reader, contrast, rotation/backgrounding, and TV-distance evidence matrix before any production or portfolio claim.
-7. Choose and add a public repository license before making the repository public; no license is inferred by this candidate.
+3. Run `npm ci`, `npm audit`, and `npm run verify` from a clean checkout before any new deployment.
+4. Verify production headers, metadata, route recovery, Blueprint API behavior, private-room isolation, and deployment-scoped error/5xx logs.
+5. Promote only an explicitly verified deployment and retain an exact rollback plan.
+6. Complete the physical device, network, screen-reader, contrast, rotation/backgrounding, and TV-distance evidence matrix before making corresponding claims.
+7. No repository license is inferred or added by this release.
 
 Do not publish adoption, health, injury-prevention, professional-coaching, biomechanics, ball-flight, racket-analysis, coaching-effectiveness, or measured latency claims without corresponding independent evidence.
